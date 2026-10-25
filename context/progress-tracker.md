@@ -6,11 +6,11 @@ Update this file after every meaningful implementation change, in the same chang
 
 ## Current Phase
 
-- **Milestone M3: Planner Task List (First Usable Slice — T-011 completed).** Quick-add FAB and modal capture sheet, SM-03 two-interaction capture, 220ms completion transition, and full test suites implemented. Milestone M3 complete and ready for Milestone M4 (Task Management / Settings).
+- **Milestone M4: Task Management (Task T-012 completed).** Settings v0: Theme selector with live dynamic transitions across 7 accent palettes, default planner view preference, backed by AndroidX DataStore (Preferences), and comprehensive test suites implemented.
 
 ## Current Goal
 
-- Author review and formal sign-off for Task T-011 and Milestone M3 closure; advance to Milestone M4 (Task Management / Settings — Task T-013).
+- Author review and formal sign-off for Task T-012; advance to Task T-013 (Task detail, edit, delete with confirmation).
 
 ## Phase Plan (from PRD v0.1)
 
@@ -39,7 +39,7 @@ Update this file after every meaningful implementation change, in the same chang
 | `TEST_PLAN.md` | Drafted (includes per-ID traceability matrix) |
 | `ROADMAP.md` | Drafted |
 | `RISK_REGISTER.md` | Drafted (43 risks) |
-| `adr/` | ADR-001 (Room) exists; ADR-002 to ADR-016 drafted |
+| `adr/` | ADR-001 (Room) & ADR-002 (DataStore Preferences) accepted; ADR-003 to ADR-016 drafted |
 | `DOCUMENTATION_VALIDATION_REPORT.md` | Drafted; lists 14 consistency issues and their fixes |
 | `UPDATES_TO_EXISTING_FILES.md` | Apply, then this file can be archived |
 | `TEST_PLAN.md` | Not started |
@@ -258,14 +258,39 @@ Update this file after every meaningful implementation change, in the same chang
     - Instrumented tests (`QuickAddFlowTest` in `app/src/androidTest/...`): Verifies FAB display, sheet opening, autofocused title input, SM-03 two-interaction capture, inline title validation error on empty string, date preset and priority selection, 48dp touch targets on all interactive elements, process recreation / rotation state survival, and reduced motion behavior.
   - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (77 tests pass in 12s), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass in 1s), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass in 28s, R8 release APK 1.2 MB).
 
+- **T-012:** Settings v0: theme selector and default planner view in DataStore:
+  - Added AndroidX DataStore Preferences (`androidx.datastore:datastore-preferences:1.1.1`) to version catalog (`gradle/libs.versions.toml`) and `app/build.gradle.kts`.
+  - Recorded ADR in [context/adr/ADR-002-datastore-preferences.md](file:///home/rahul/AndroidStudioProjects/LifeKernel/context/adr/ADR-002-datastore-preferences.md) documenting storage model, zero-telemetry invariant, and boundaries.
+  - Implemented domain model and contract:
+    - `DefaultPlannerView` domain enum (`TASKS`, `TIMETABLE`) in `com.lifekernel.app.domain.model`.
+    - `SettingsRepository` in `com.lifekernel.app.domain.repository` exposing `themePalette: Flow<AccentPalette>`, `defaultPlannerView: Flow<DefaultPlannerView>`, and suspend mutators. Strictly clean domain layer with zero `android.*` or `androidx.*` imports (verified by `LayerBoundaryTest`).
+  - Implemented data layer under `com.lifekernel.app.data.prefs`:
+    - `SettingsPreferences`: DataStore initialization (`settings_preferences`), scalar keys (`theme_palette_id`, `default_planner_view`), and defaults (`lime`, `TASKS`). Strict invariant: DataStore holds only small scalar settings and bookkeeping flags, never user records.
+    - `SettingsRepositoryImpl`: Backed by AndroidX `DataStore<Preferences>` on `Dispatchers.IO` with safe `IOException` fallback (`emptyPreferences()`) and fallback to Lime / Tasks on unknown/corrupted strings.
+  - Manual DI Wiring:
+    - Registered lazy singleton `settingsRepository` and `createSettingsViewModel()` factory in `AppContainer` and `DefaultAppContainer`.
+  - Presentation Layer under `com.lifekernel.app.feature.settings`:
+    - `SettingsUiState`: Immutable state containing selected palette, available palettes, and selected default planner view.
+    - `SettingsViewModel`: Coordinates persistent palette and planner view state via `StateFlow` and dispatches updates off the main thread.
+    - `SettingsScreen`: Neo-brutalist settings screen with `PosTopBar` ("Settings" with hamburger drawer button), "ACCENT THEME" section rendering selectable `PosCard`s with visual color swatches for all 7 palettes (Lime, Orange, Red, Blue, Purple, Warm Amber, Neutral Mono) and active selection indicator, and "DEFAULT PLANNER VIEW" section with `PosSegmentedToggle` (Tasks vs Timetable). Strict 48dp minimum touch targets on all interactive selectors. Zero hardcoded colors or borders (tokens only).
+  - Root Theme Observation:
+    - Wired `MainActivity.kt` to collect `settingsRepository.observeThemePalette()` with lifecycle awareness (`flowWithLifecycle(lifecycle)`), passing the active palette to `PosTheme(palette = activePalette)`.
+    - Updated `PosTheme` dynamic colors in `Theme.kt` to derive `accentSubtle` (16% alpha) and `accentPressed` (80% alpha) from the animated accent token, enabling smooth 160ms (`motionStandard`) color transitions across the entire app upon palette selection and persistence across process restarts.
+  - Automated Test Suites:
+    - Unit tests (`SettingsRepositoryTest` in `app/src/test/...`): 6 test cases verifying initial defaults (Lime, Tasks), palette persistence across all 7 palettes, fallback to Lime on unknown palette ID, fallback to Tasks on corrupted view string, and planner view mutations.
+    - Unit tests (`SettingsViewModelTest` in `app/src/test/...`): 3 test cases verifying state emissions and dispatch calls.
+    - Total: **86 passing JVM unit tests** (100% success rate).
+    - Instrumented UI tests (`SettingsScreenTest` in `app/src/androidTest/...`): 5 test cases verifying rendering of the 7 palettes, palette selection interaction, default planner view toggle interaction, 48dp minimum touch targets, and top bar drawer callback.
+  - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (86 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass in 33s), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass in 52s, R8 release APK 1.4 MB, audited 0 network permissions, strictly NO INTERNET).
+
 ## In Progress
 
-- Milestone M3 (Planner Task List): Task T-011 completed. Milestone M3 complete and awaiting author review.
+- Milestone M4 (Task Management): Task T-012 completed. Awaiting author review.
 
 ## Next Up
 
-1. Author review and formal sign-off for Task T-011 and Milestone M3 closure.
-2. Advance to Milestone M4 (Task Management / Settings — Task T-013: Task detail and editing).
+1. Author review and formal sign-off for Task T-012.
+2. Advance to Milestone M4 — Task T-013 (Task detail, edit, delete with confirmation).
 
 ## Open Questions
 

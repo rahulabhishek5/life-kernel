@@ -5,8 +5,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.lifekernel.app.core.time.Clock
 import com.lifekernel.app.core.time.DefaultClock
 import com.lifekernel.app.data.local.LifeKernelDatabase
+import com.lifekernel.app.data.prefs.SettingsPreferences
+import com.lifekernel.app.data.prefs.SettingsRepositoryImpl
 import com.lifekernel.app.data.repository.TagRepositoryImpl
 import com.lifekernel.app.data.repository.TaskRepositoryImpl
+import com.lifekernel.app.domain.repository.SettingsRepository
 import com.lifekernel.app.domain.repository.TagRepository
 import com.lifekernel.app.domain.repository.TaskRepository
 import com.lifekernel.app.domain.usecase.CompleteTaskUseCase
@@ -14,6 +17,7 @@ import com.lifekernel.app.domain.usecase.CreateTaskUseCase
 import com.lifekernel.app.domain.usecase.ObservePlannerTasksUseCase
 import com.lifekernel.app.domain.usecase.ReopenTaskUseCase
 import com.lifekernel.app.feature.planner.PlannerViewModel
+import com.lifekernel.app.feature.settings.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> {
@@ -31,11 +35,13 @@ interface AppContainer {
     val database: LifeKernelDatabase
     val taskRepository: TaskRepository
     val tagRepository: TagRepository
+    val settingsRepository: SettingsRepository
     val observePlannerTasksUseCase: ObservePlannerTasksUseCase
     val completeTaskUseCase: CompleteTaskUseCase
     val reopenTaskUseCase: ReopenTaskUseCase
     val createTaskUseCase: CreateTaskUseCase
     fun createPlannerViewModel(): PlannerViewModel
+    fun createSettingsViewModel(): SettingsViewModel
 }
 
 /**
@@ -59,6 +65,14 @@ class DefaultAppContainer(
         TagRepositoryImpl(
             database = database,
             clock = clock,
+            dispatcher = Dispatchers.IO
+        )
+    }
+
+    override val settingsRepository: SettingsRepository by lazy {
+        val dataStore = SettingsPreferences.createDataStore(context)
+        SettingsRepositoryImpl(
+            dataStore = dataStore,
             dispatcher = Dispatchers.IO
         )
     }
@@ -96,6 +110,12 @@ class DefaultAppContainer(
             reopenTaskUseCase = reopenTaskUseCase,
             createTaskUseCase = createTaskUseCase,
             clock = clock
+        )
+    }
+
+    override fun createSettingsViewModel(): SettingsViewModel {
+        return SettingsViewModel(
+            settingsRepository = settingsRepository
         )
     }
 }

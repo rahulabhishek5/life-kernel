@@ -10,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 
 val LocalPosColors = staticCompositionLocalOf<PosColors> {
@@ -102,9 +103,14 @@ fun PosTheme(
         AccentPalettes.createPosColors(palette)
     }
 
+    val animatedAccentSubtle = animatedAccent.copy(alpha = 0.16f)
+    val animatedAccentPressed = animatedAccent.copy(alpha = 0.80f).compositeOver(PosColorSurface)
+
     val dynamicColors = baseColors.copy(
         accent = animatedAccent,
-        onAccent = palette.onAccent
+        onAccent = palette.onAccent,
+        accentSubtle = animatedAccentSubtle,
+        accentPressed = animatedAccentPressed
     )
 
     val materialColorScheme = remember(dynamicColors) {
