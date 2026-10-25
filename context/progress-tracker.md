@@ -6,11 +6,11 @@ Update this file after every meaningful implementation change, in the same chang
 
 ## Current Phase
 
-- **Milestone M3: Planner Task List (First Usable Slice — T-009 completed).** App shell and drawer navigation implemented. Ready for Task T-010 (Planner — tasks view).
+- **Milestone M3: Planner Task List (First Usable Slice — T-010 completed).** Planner tasks view, progress card, section grouping, ViewModel, and test suites implemented. Ready for Task T-011 (Quick-add and completion transition).
 
 ## Current Goal
 
-- Author review and approval of Task T-009; advance to Task T-010 (Planner — tasks view).
+- Author review and approval of Task T-010; advance to Task T-011 (Quick-add and completion transition).
 
 ## Phase Plan (from PRD v0.1)
 
@@ -192,16 +192,47 @@ Update this file after every meaningful implementation change, in the same chang
     - Unit tests: `AppNavigationStateTest` (4 tests verifying start destination, navigation, single-top, and FR-NAV-002 unbuilt module omission). Total: **63 passing JVM unit tests** (100% success rate).
     - Compose navigation tests (`NavigationTest` in `androidTest`): Start destination test, drawer opening & navigation to Settings, scrim dismissal, 48dp minimum touch target per drawer row, state restoration across configuration changes, reduced-motion instant snap, and back hierarchy logic.
   - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (63 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
+- **T-010:** Planner — tasks view:
+  - Implemented immutable `PlannerUiState` modeling complete screen state:
+    - Formatted date and weekday header ("EEE · d MMM uuuu" in uppercase mono).
+    - Task counts: completed tasks today, total tasks today, completion ratio float clamped to `0f..1f`.
+    - Sectioned task lists: Overdue tasks list, Today's open tasks list (due today + open tasks with no due date per PRD §8.2), and Done tasks list.
+    - Section collapse state: Done section collapsed by default (`isDoneCollapsed = true`).
+    - Loading / empty state representation (`isPlannedEmpty` boolean).
+  - Implemented `PlannerViewModel` managing UI state flow:
+    - Dependencies: `ObservePlannerTasksUseCase`, `CompleteTaskUseCase`, `ReopenTaskUseCase`, `Clock`, and optional injectable `CoroutineScope` for deterministic JVM testing.
+    - Unidirectional state collection via `combine` and `flatMapLatest` into `StateFlow<PlannerUiState>`.
+    - Task toggle dispatcher: delegates to `CompleteTaskUseCase` for open tasks and `ReopenTaskUseCase` for completed tasks.
+    - Section toggle dispatcher: expands and collapses the Done section.
+    - Midnight rollover / lifecycle evaluation: `checkDayRollover()` checks if clock date has advanced upon UI resume without background polling loops or timers.
+  - Implemented UI components under `com.lifekernel.app.feature.planner.components`:
+    - `PlannerHeader`: Displays formatted mono date header (`PosTypography.label` with `PosFonts.mono`) and a `PosCard` progress card with ratio text (e.g., "3 / 7 DONE") and `PosProgressBar` with smooth 160ms fill animation (snapping instantly under reduced motion).
+    - `PlannerSectionHeader`: Neo-brutalist header with mono uppercase title and count badge; includes `PlannerCollapsibleSectionHeader` for Done section with expand/collapse chevron and 160ms height/rotation animation.
+    - `PlannerTaskRow`: Warm neo-brutalist row with leading `PosCheckbox` (48dp touch target), task title (`PosTypography.body`), 220ms strikethrough & `textMuted` transition on completion, priority indicators (`!!` High, `!` Medium, `·` Low), tag badges, and overdue status indication.
+  - Implemented `PlannerScreen`:
+    - `LazyColumn` with stable item keys (`Task.id`) and item content types.
+    - Overdue section: conditionally rendered only when overdue tasks exist, highlighted with `stateWarning`.
+    - Today section: displays open tasks due today and open tasks without due date.
+    - Done section: collapsed by default with count, expands on click.
+    - Empty state: displays `PosEmptyState("NOTHING PLANNED", "Add your first task for today.")` when both Overdue and Today sections are empty.
+    - Lifecycle observer: registers `LifecycleEventObserver` to trigger `viewModel.checkDayRollover()` on `ON_RESUME`.
+  - Manual DI Wiring:
+    - Exposed `createPlannerViewModel(): PlannerViewModel` in `AppContainer` and `DefaultAppContainer`.
+    - Provided `LocalAppContainer` in `MainActivity` and `PlannerScreen` factory fallback.
+  - Automated test suites:
+    - Unit tests (`PlannerViewModelTest` in `app/src/test/...`): 5 test cases verifying initial empty state, overdue/today/done task partitioning, task complete/reopen dispatch, done collapse toggle, and midnight rollover. Total: **68 passing JVM unit tests** (100% success rate).
+    - Compose UI tests (`PlannerScreenTest` in `app/src/androidTest/...`): Verifies empty state rendering, date header/progress card/sections display, done section expand/collapse, checkbox 48dp minimum touch target, and reduced-motion instant completion.
+  - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (68 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
 
 ## In Progress
 
-- Milestone M3 (Planner Task List): Task T-009 completed; awaiting author review before T-010 (Planner — tasks view).
+- Milestone M3 (Planner Task List): Task T-010 completed; awaiting author review before T-011 (Quick-add and completion transition).
 
 ## Next Up
 
-1. Author review and approval of Task T-009.
-2. Milestone M3: Task T-010 (Planner — tasks view).
-3. Milestone M3: Task T-011 (Quick-add and completion transition).
+1. Author review and approval of Task T-010.
+2. Milestone M3: Task T-011 (Quick-add and completion transition).
+3. Milestone M3: Task T-012 (Planner testing and milestone verification).
 
 ## Open Questions
 

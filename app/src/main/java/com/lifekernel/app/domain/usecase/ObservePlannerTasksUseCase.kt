@@ -20,6 +20,8 @@ data class PlannerTasksSnapshot(
 
 /**
  * Use case to observe the reactive stream of planner tasks for a given date.
+ * Combines overdue tasks (due before date), today's tasks (due on date + tasks without due date),
+ * and tasks completed today.
  */
 class ObservePlannerTasksUseCase(
     private val taskRepository: TaskRepository,
@@ -28,22 +30,28 @@ class ObservePlannerTasksUseCase(
 
     operator fun invoke(date: LocalDate = clock.today()): Flow<PlannerTasksSnapshot> {
         val overdueFlow = taskRepository.observeOpenTasksDueOnOrBefore(date.minusDays(1))
-        val todayFlow = taskRepository.observeOpenTasksForDate(date)
+        val todayDueFlow = taskRepository.observeOpenTasksForDate(date)
+        val noDueDateFlow = taskRepository.observeOpenTasksWithoutDueDate()
         val completedTasksFlow = taskRepository.observeCompletedTasksForDate(date)
         val completedCountFlow = taskRepository.observeCompletedCountForDate(date)
 
         return combine(
             overdueFlow,
-            todayFlow,
+            todayDueFlow,
+            noDueDateFlow,
             completedTasksFlow,
             completedCountFlow
-        ) { overdue, today, completedTasks, completedCount ->
+        ) { overdue, todayDue, noDueDate, completedTasks, completedCount ->
+            val todayCombined = (todayDue + noDueDate)
+                .distinctBy { it.id }
+                .sortedByDescending { it.priority.code }
+
             PlannerTasksSnapshot(
                 overdueTasks = overdue,
-                todayTasks = today,
+                todayTasks = todayCombined,
                 completedTodayTasks = completedTasks,
                 completedTodayCount = completedCount,
-                totalTodayCount = today.size + completedCount
+                totalTodayCount = todayCombined.size + completedCount
             )
         }
     }

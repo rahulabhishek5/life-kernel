@@ -4,7 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.CompositionLocalProvider
 import com.lifekernel.app.core.designsystem.theme.PosTheme
+import com.lifekernel.app.di.LocalAppContainer
 import com.lifekernel.app.navigation.AppNavHost
 
 /**
@@ -14,9 +16,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val app = application as LifeKernelApp
         setContent {
-            PosTheme {
-                AppNavHost()
+            CompositionLocalProvider(LocalAppContainer provides app.appContainer) {
+                PosTheme {
+                    AppNavHost()
+                }
             }
         }
     }
