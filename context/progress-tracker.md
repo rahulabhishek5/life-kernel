@@ -6,11 +6,11 @@ Update this file after every meaningful implementation change, in the same chang
 
 ## Current Phase
 
-- **Milestone M2: Database and Task Data Layer (T-007 and T-008 completed).** Milestone M2 complete; ready for Milestone M3 (Planner task list).
+- **Milestone M3: Planner Task List (First Usable Slice — T-009 completed).** App shell and drawer navigation implemented. Ready for Task T-010 (Planner — tasks view).
 
 ## Current Goal
 
-- Author review and approval of Task T-008; transition to Milestone M3: Task T-009 (App shell and navigation).
+- Author review and approval of Task T-009; advance to Task T-010 (Planner — tasks view).
 
 ## Phase Plan (from PRD v0.1)
 
@@ -159,16 +159,49 @@ Update this file after every meaningful implementation change, in the same chang
     - Unit tests: `TaskValidatorTest` (9 tests for title, description, tag name bounds, subtask depth-1, and recurrence rules), `TaskUseCasesTest` (7 tests using fake repository and `FixedClock`), `LayerBoundaryTest` (3 tests verifying zero platform imports in `domain/`). Total: **59 passing JVM unit tests** (100% success rate).
     - Repository integration tests: `TaskRepositoryIntegrationTest` (in-memory Room + `FixedClock`: atomic completion/reopen transactions, double-complete rejection, already-open rejection, cascading deletion with orphan tag cleanup, `completed_on` timezone stability, empty database defaults, reactive Flow re-emission) and `TagRepositoryIntegrationTest`.
   - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (59 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
+- **T-009:** App shell and navigation:
+  - Implemented `PosTopBar` in `com.lifekernel.app.core.designsystem.components`:
+    - Edge-to-edge status bars aware (`statusBarsPadding()`).
+    - AMOLED black background (`PosTheme.colors.background`).
+    - Leading hamburger button with 48dp minimum touch target bounding box, accessibility label ("Open navigation drawer"), role `Role.Button`, and crisp 3-bar neo-brutalist canvas icon.
+    - Title with `PosTypography.title` and optional trailing actions slot.
+  - Implemented `PosDrawer` in `com.lifekernel.app.core.designsystem.components`:
+    - Modal navigation drawer sliding from the left with width ~80% of screen width (capped at 320dp).
+    - Scrim: `#000000` at 60% alpha (`PosColors.scrim`).
+    - Animation: Slide and scrim fade animating over 220ms (`motionEmphasized`), or instant snap (0ms) when `LocalReducedMotion` is active.
+    - Grouped entries separated by dividers per `design-system.md` §8.3:
+      - Header: App name ("Life Kernel") and version ("v0.1" in mono).
+      - Group 1 (Daily): Home / Today.
+      - Group 2 (System): Settings.
+      - Strict Rule (FR-NAV-002): Unbuilt modules (Calendar, Timetable, Habits, Goals, Notes, Resources, Analytics) are strictly omitted.
+    - Drawer item states: Selected item renders with `accentSubtle` background, a 3dp accent vertical edge indicator bar, and `textPrimary`. Unselected items use transparent background with `textPrimary`. Minimum 48dp touch target per row.
+  - Implemented navigation infrastructure in `com.lifekernel.app.navigation`:
+    - `Screen`: Type-safe destinations (`Screen.Home`, `Screen.Settings`).
+    - `DrawerDestination`: Central top-level destination model with group metadata.
+    - `AppNavigationState`: State holder with `Saver` for `rememberSaveable` to restore active destination across configuration changes (rotation).
+    - `AppNavHost`: Top-level shell composable hosting `PosDrawer` and screen switching with 160ms (`motionStandard`) crossfade (0ms under reduced motion).
+  - Implemented predictable back navigation hierarchy:
+    1. If drawer is open, Back closes the drawer first.
+    2. If currently on Settings and drawer is closed, Back returns to Home / Today.
+    3. If currently on Home / Today, system back exits the app.
+  - Implemented placeholder screens:
+    - `feature/planner/PlannerScreen.kt`: Home / Today with `PosTopBar`.
+    - `feature/settings/SettingsScreen.kt`: Settings with `PosTopBar`.
+  - Updated `MainActivity.kt`: Set content strictly to `AppNavHost` within `PosTheme`.
+  - Automated test suites:
+    - Unit tests: `AppNavigationStateTest` (4 tests verifying start destination, navigation, single-top, and FR-NAV-002 unbuilt module omission). Total: **63 passing JVM unit tests** (100% success rate).
+    - Compose navigation tests (`NavigationTest` in `androidTest`): Start destination test, drawer opening & navigation to Settings, scrim dismissal, 48dp minimum touch target per drawer row, state restoration across configuration changes, reduced-motion instant snap, and back hierarchy logic.
+  - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (63 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
 
 ## In Progress
 
-- Milestone M2 (Database and Task Data Layer) completed (T-007 and T-008 verified). Ready for author review before advancing to Milestone M3 (Planner task list).
+- Milestone M3 (Planner Task List): Task T-009 completed; awaiting author review before T-010 (Planner — tasks view).
 
 ## Next Up
 
-1. Author review and approval of Milestone M2 (T-008).
-2. Milestone M3: Task T-009 (App shell and navigation).
-3. Milestone M3: Task T-010 (Planner — tasks view).
+1. Author review and approval of Task T-009.
+2. Milestone M3: Task T-010 (Planner — tasks view).
+3. Milestone M3: Task T-011 (Quick-add and completion transition).
 
 ## Open Questions
 
