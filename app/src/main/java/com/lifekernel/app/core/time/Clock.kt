@@ -14,6 +14,9 @@ import java.time.ZoneId
  * never calling System.currentTimeMillis(), Instant.now(), or LocalDate.now() directly.
  */
 interface Clock {
+    val zoneId: ZoneId
+        get() = ZoneId.systemDefault()
+
     /**
      * Current instant in UTC.
      */
@@ -25,29 +28,30 @@ interface Clock {
     fun nowEpochMillis(): Long = nowInstant().toEpochMilli()
 
     /**
-     * Current calendar date in the specified [zoneId] (defaults to system default zone).
+     * Current calendar date in the specified [zone] (defaults to clock's [zoneId]).
      */
-    fun today(zoneId: ZoneId = ZoneId.systemDefault()): LocalDate =
-        nowInstant().atZone(zoneId).toLocalDate()
+    fun today(zone: ZoneId = zoneId): LocalDate =
+        nowInstant().atZone(zone).toLocalDate()
 
     /**
-     * Current local time of day in the specified [zoneId] (defaults to system default zone).
+     * Current local time of day in the specified [zone] (defaults to clock's [zoneId]).
      */
-    fun nowLocalTime(zoneId: ZoneId = ZoneId.systemDefault()): LocalTime =
-        nowInstant().atZone(zoneId).toLocalTime()
+    fun nowLocalTime(zone: ZoneId = zoneId): LocalTime =
+        nowInstant().atZone(zone).toLocalTime()
 
     /**
-     * Current local date-time in the specified [zoneId] (defaults to system default zone).
+     * Current local date-time in the specified [zone] (defaults to clock's [zoneId]).
      */
-    fun nowLocalDateTime(zoneId: ZoneId = ZoneId.systemDefault()): LocalDateTime =
-        nowInstant().atZone(zoneId).toLocalDateTime()
+    fun nowLocalDateTime(zone: ZoneId = zoneId): LocalDateTime =
+        nowInstant().atZone(zone).toLocalDateTime()
 }
 
 /**
  * Default clock implementation backed by [java.time.Clock.systemUTC].
  */
 class DefaultClock(
-    private val javaClock: java.time.Clock = java.time.Clock.systemUTC()
+    private val javaClock: java.time.Clock = java.time.Clock.systemUTC(),
+    override val zoneId: ZoneId = ZoneId.systemDefault()
 ) : Clock {
     override fun nowInstant(): Instant = javaClock.instant()
 }
@@ -57,18 +61,18 @@ class DefaultClock(
  */
 class FixedClock(
     private var currentInstant: Instant = Instant.EPOCH,
-    private val defaultZoneId: ZoneId = ZoneId.of("UTC")
+    override val zoneId: ZoneId = ZoneId.of("UTC")
 ) : Clock {
     override fun nowInstant(): Instant = currentInstant
 
-    override fun today(zoneId: ZoneId): LocalDate =
-        currentInstant.atZone(zoneId).toLocalDate()
+    override fun today(zone: ZoneId): LocalDate =
+        currentInstant.atZone(zone).toLocalDate()
 
-    override fun nowLocalTime(zoneId: ZoneId): LocalTime =
-        currentInstant.atZone(zoneId).toLocalTime()
+    override fun nowLocalTime(zone: ZoneId): LocalTime =
+        currentInstant.atZone(zone).toLocalTime()
 
-    override fun nowLocalDateTime(zoneId: ZoneId): LocalDateTime =
-        currentInstant.atZone(zoneId).toLocalDateTime()
+    override fun nowLocalDateTime(zone: ZoneId): LocalDateTime =
+        currentInstant.atZone(zone).toLocalDateTime()
 
     fun setInstant(instant: Instant) {
         currentInstant = instant

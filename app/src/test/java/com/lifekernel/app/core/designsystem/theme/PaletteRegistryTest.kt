@@ -39,6 +39,15 @@ class PaletteRegistryTest {
     }
 
     @Test
+    fun limePalette_resolvesToLimeGreen_neverRed() {
+        val lime = AccentPalettes.fromId("lime")
+        assertEquals(AccentPalettes.Lime, lime)
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFA3E635), lime.accent)
+        org.junit.Assert.assertNotEquals(androidx.compose.ui.graphics.Color(0xFFF87171), lime.accent)
+        org.junit.Assert.assertNotEquals(androidx.compose.ui.graphics.Color(0xFFFF5A5F), lime.accent)
+    }
+
+    @Test
     fun createPosColors_derivesTokensCorrectly() {
         for (palette in AccentPalettes.all) {
             val colors = AccentPalettes.createPosColors(palette)

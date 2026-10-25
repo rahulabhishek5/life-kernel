@@ -73,7 +73,7 @@ fun PosButton(
                 ButtonStyle(
                     backgroundColor = PosTheme.colors.accent,
                     textColor = PosTheme.colors.onAccent,
-                    borderColor = PosTheme.colors.accent,
+                    borderColor = PosTheme.colors.background,
                     borderWidth = PosTheme.borders.borderStrong
                 )
             } else {
@@ -148,6 +148,13 @@ fun PosButton(
                 end = if (variant == PosButtonVariant.Primary && enabled) offsetDepth else PosTheme.spacing.space1 * 0,
                 bottom = if (variant == PosButtonVariant.Primary && enabled) offsetDepth else PosTheme.spacing.space1 * 0
             )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
+            .semantics { role = Role.Button }
     ) {
         // Offset block behind primary button (neo-brutalist tactile depth)
         if (variant == PosButtonVariant.Primary && enabled) {
@@ -157,6 +164,7 @@ fun PosButton(
                     .offset(x = offsetDepth, y = offsetDepth)
                     .clip(shape)
                     .background(PosTheme.colors.accent)
+                    .border(PosTheme.borders.borderStandard, PosTheme.colors.outlineStrong, shape)
             )
         }
 
@@ -171,13 +179,6 @@ fun PosButton(
                         Modifier.border(style.borderWidth, style.borderColor, shape)
                     } else Modifier
                 )
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    enabled = enabled,
-                    onClick = onClick
-                )
-                .semantics { role = Role.Button }
                 .defaultMinSize(
                     minWidth = PosTheme.spacing.minTouchTarget,
                     minHeight = PosTheme.spacing.minTouchTarget

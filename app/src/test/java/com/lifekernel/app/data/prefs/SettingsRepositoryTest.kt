@@ -88,6 +88,15 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun limePalette_resolvesExplicitlyToLime_andNeverRed() = runBlocking {
+        repository.setThemePalette("lime")
+        val emitted = repository.observeThemePalette().first()
+        assertEquals(AccentPalettes.Lime, emitted)
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFA3E635), emitted.accent)
+        org.junit.Assert.assertNotEquals(androidx.compose.ui.graphics.Color(0xFFF87171), emitted.accent)
+    }
+
+    @Test
     fun updateDefaultPlannerView_persistsAndEmitsUpdatedView() = runBlocking {
         repository.setDefaultPlannerView(DefaultPlannerView.TIMETABLE)
         val timetable = repository.observeDefaultPlannerView().first()

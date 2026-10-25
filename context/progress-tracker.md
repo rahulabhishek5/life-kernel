@@ -283,13 +283,35 @@ Update this file after every meaningful implementation change, in the same chang
     - Instrumented UI tests (`SettingsScreenTest` in `app/src/androidTest/...`): 5 test cases verifying rendering of the 7 palettes, palette selection interaction, default planner view toggle interaction, 48dp minimum touch targets, and top bar drawer callback.
   - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (86 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass in 33s), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass in 52s, R8 release APK 1.4 MB, audited 0 network permissions, strictly NO INTERNET).
 
+- **Post-T-012 Stability Audit & Visual / Interaction Defect Resolution:**
+  - Conducted hardware stability audit and resolved 5 confirmed visual and interaction defects on native physical hardware (`RK6DY5ONUOHMTKDM`):
+    - **Defect 1 (Lime / Green Palette Inversion):**
+      - Root Cause: Palette ID string matching and theme color memoization in Compose needed strict normalization, explicit case-insensitive mapping in `Palette.kt`, and keying on `palette.id` and `palette.accent` in `Theme.kt` to prevent accidental fallbacks.
+      - Fix: Hardened `AccentPalettes.fromId()` with explicit lowercase trimming and default fallback to `Lime`. Hardened `SettingsRepositoryImpl.setThemePalette()` with string normalization. Keyed `remember(palette.id, palette.accent)` in `Theme.kt`. Added unit test assertions in `PaletteRegistryTest` and `SettingsRepositoryTest` ensuring `"lime"` strictly resolves to `#A3E635` and never Red.
+    - **Defect 2 (Primary Button & FAB Neo-Brutalist Offset Merging):**
+      - Root Cause: Both button face and 3dp offset block used identical accent fill without a contrasting outline, blending into an amorphous block with zero 3D depth.
+      - Fix: Added a crisp 2dp contrasting boundary outline (`PosTheme.colors.background` / `#000000`, `borderStrong`) to the foreground face of `PosButton` (Primary) and `PlannerQuickAddButton`, separating it distinctly from the 3dp accent drop block. Added outer 1.5dp standard outline to the offset shadow block. Maintained 100ms tactile press translation (`motionFast`) / 0ms on reduced motion.
+    - **Defect 3 (Screen Flickering & Jumping on Quick-Add Sheet Entry):**
+      - Root Cause: Synchronous frame-0 `focusRequester.requestFocus()` collided violently with the 220ms sheet entrance transition, and `Modifier.imePadding()` on outer layouts forced re-measurement and resizing of the background planner screen; furthermore, window focus events triggered redundant `checkDayRollover()` calls.
+      - Fix: Deferred soft keyboard focus request via coroutine until after sheet entrance animation completes (`enterDuration + 50L`) wrapped in try-catch. Confined `imePadding()` strictly to the inner scrollable content of `PosSheet` while anchoring the outer surface to `navigationBarsPadding()`. Guarded `PlannerScreen` lifecycle observer to skip rollover checks while QuickAdd is visible.
+    - **Defect 4 (Top Bar Background & Scrolled Content Bleed):**
+      - Root Cause: `PosTopBar` lacked an opaque background and bottom divider, allowing scrolled cards to bleed through.
+      - Fix: Wrapped `PosTopBar` in an opaque column with `PosTheme.colors.background` (`#000000`), status bars padding, and a 1dp subtle bottom divider (`PosTheme.colors.divider` = `#303030`). Omitted any accent bottom borders.
+    - **Defect 5 (Empty State & FAB Layout Ergonomics):**
+      - Root Cause: Empty state button and FAB both present simultaneously, with risk of FAB obscuring scrolled content.
+      - Fix: Unified both actions to invoke identical `viewModel::onOpenQuickAdd`. Increased list bottom spacing to 80dp (`space12 + space8`) + navigation bars clearance, ensuring content scrolled to bottom is never obscured by FAB.
+  - Automated Test Suites & Regression Battery:
+    - **JVM Unit Tests:** 88 tests passed, 0 failures, 0 skipped (100% success rate across all domain, data, and presentation test suites).
+    - **On-Device Instrumented Tests:** 59 tests passed, 0 failures on physical hardware `2412DPC0AI` (`RK6DY5ONUOHMTKDM`).
+    - **Lint & Size Budget:** 0 lint errors (`lintDebug`), release APK strictly 1.4 MB (< 1.5 MB budget), audited 0 network permissions (`uses-permission` has NO internet access).
+
 ## In Progress
 
-- Milestone M4 (Task Management): Task T-012 completed. Awaiting author review.
+- Post-T-012 Stability Audit & Visual/Interaction Defect Resolution completed. Awaiting author review.
 
 ## Next Up
 
-1. Author review and formal sign-off for Task T-012.
+1. Author review and formal sign-off for Post-T-012 Stability Audit & Defect Resolution.
 2. Advance to Milestone M4 — Task T-013 (Task detail, edit, delete with confirmation).
 
 ## Open Questions

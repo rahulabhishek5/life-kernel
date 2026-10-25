@@ -141,7 +141,7 @@ class PlannerScreenTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithTag("task_row_1")
             .assertIsDisplayed()
-        composeTestRule.onNodeWithTag("task_priority_1")
+        composeTestRule.onNodeWithTag("task_priority_1", useUnmergedTree = true)
             .assertIsDisplayed()
             .assertTextEquals("!!")
 
@@ -150,7 +150,7 @@ class PlannerScreenTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithTag("task_row_2")
             .assertIsDisplayed()
-        composeTestRule.onNodeWithTag("task_priority_2")
+        composeTestRule.onNodeWithTag("task_priority_2", useUnmergedTree = true)
             .assertIsDisplayed()
             .assertTextEquals("!")
 

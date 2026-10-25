@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -47,11 +48,12 @@ fun PlannerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val reducedMotion = PosTheme.reducedMotion
+    val currentQuickAddVisible by rememberUpdatedState(uiState.isQuickAddVisible)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
+            if (event == Lifecycle.Event.ON_RESUME && !currentQuickAddVisible) {
                 viewModel.checkDayRollover()
             }
         }
@@ -187,7 +189,7 @@ fun PlannerScreen(
                 item(key = "bottom_spacer") {
                     Spacer(
                         modifier = Modifier
-                            .height(PosTheme.spacing.space12 + PosTheme.spacing.space6)
+                            .height(PosTheme.spacing.space12 + PosTheme.spacing.space8)
                             .navigationBarsPadding()
                     )
                 }

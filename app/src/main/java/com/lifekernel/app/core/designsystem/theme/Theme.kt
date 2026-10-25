@@ -99,7 +99,7 @@ fun PosTheme(
         label = "PosThemeAccent"
     ).value
 
-    val baseColors = remember(palette) {
+    val baseColors = remember(palette.id, palette.accent) {
         AccentPalettes.createPosColors(palette)
     }
 

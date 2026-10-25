@@ -55,10 +55,27 @@ fun PosCard(
     val borderWidth = if (isSelected) PosTheme.borders.borderStrong else PosTheme.borders.borderStandard
 
     Box(
-        modifier = modifier.padding(
-            end = if (hasOffsetBlock) offsetDepth else PosTheme.spacing.space1 * 0,
-            bottom = if (hasOffsetBlock) offsetDepth else PosTheme.spacing.space1 * 0
-        )
+        modifier = modifier
+            .padding(
+                end = if (hasOffsetBlock) offsetDepth else PosTheme.spacing.space1 * 0,
+                bottom = if (hasOffsetBlock) offsetDepth else PosTheme.spacing.space1 * 0
+            )
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = onClick
+                        )
+                        .semantics {
+                            role = Role.Button
+                            if (isSelected) {
+                                this.selected = true
+                            }
+                        }
+                } else Modifier
+            )
     ) {
         // Offset shadow block for selected card
         if (hasOffsetBlock) {
@@ -78,22 +95,6 @@ fun PosCard(
                 .clip(shape)
                 .background(PosTheme.colors.surface)
                 .border(borderWidth, borderColor, shape)
-                .then(
-                    if (onClick != null) {
-                        Modifier
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null,
-                                onClick = onClick
-                            )
-                            .semantics {
-                                role = Role.Button
-                                if (isSelected) {
-                                    this.selected = true
-                                }
-                            }
-                    } else Modifier
-                )
                 .padding(PosTheme.spacing.space4),
             content = content
         )

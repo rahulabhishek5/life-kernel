@@ -70,7 +70,7 @@ class SettingsScreenTest {
         }
 
         composeTestRule.onNodeWithText("DEFAULT PLANNER VIEW").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithTag("default_planner_view_toggle").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("default_planner_view_toggle").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -143,7 +143,7 @@ class SettingsScreenTest {
 
     @Test
     fun topBarNavigationButton_triggersOpenDrawerCallback() {
-        composeTestRule.onNodeWithText("Open navigation drawer").performClick()
+        composeTestRule.onNodeWithTag("top_bar_navigation_button").performClick()
         assertEquals(true, drawerOpenClicked)
     }
 }

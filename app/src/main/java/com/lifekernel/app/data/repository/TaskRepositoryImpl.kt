@@ -219,7 +219,7 @@ class TaskRepositoryImpl(
                 }
 
                 val nowEpoch = clock.nowEpochMillis()
-                val todayLocal = clock.today(ZoneId.systemDefault()).toString()
+                val todayLocal = clock.today().toString()
 
                 val completionEntity = TaskCompletionEntity(
                     taskId = taskId,

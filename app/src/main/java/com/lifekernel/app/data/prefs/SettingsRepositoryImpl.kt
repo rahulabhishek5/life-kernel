@@ -66,7 +66,7 @@ class SettingsRepositoryImpl(
     override suspend fun setThemePalette(paletteId: String) {
         withContext(dispatcher) {
             dataStore.edit { preferences ->
-                preferences[SettingsPreferences.KEY_THEME_PALETTE_ID] = paletteId
+                preferences[SettingsPreferences.KEY_THEME_PALETTE_ID] = paletteId.trim().lowercase()
             }
         }
     }

@@ -6,7 +6,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.lifekernel.app.LifeKernelApp
 import com.lifekernel.app.core.designsystem.components.PosDrawer
 import com.lifekernel.app.core.designsystem.components.PosDrawerDivider
 import com.lifekernel.app.core.designsystem.components.PosDrawerHeader
@@ -14,6 +17,8 @@ import com.lifekernel.app.core.designsystem.components.PosDrawerItem
 import com.lifekernel.app.core.designsystem.components.PosDrawerState
 import com.lifekernel.app.core.designsystem.components.rememberPosDrawerState
 import com.lifekernel.app.core.designsystem.theme.PosTheme
+import com.lifekernel.app.di.AppContainer
+import com.lifekernel.app.di.LocalAppContainer
 import com.lifekernel.app.feature.planner.PlannerScreen
 import com.lifekernel.app.feature.settings.SettingsScreen
 
@@ -30,7 +35,36 @@ import com.lifekernel.app.feature.settings.SettingsScreen
 fun AppNavHost(
     modifier: Modifier = Modifier,
     navigationState: AppNavigationState = rememberAppNavigationState(),
-    drawerState: PosDrawerState = rememberPosDrawerState()
+    drawerState: PosDrawerState = rememberPosDrawerState(),
+    appContainer: AppContainer? = null
+) {
+    val context = LocalContext.current
+    val resolvedContainer = appContainer
+        ?: runCatching { LocalAppContainer.current }.getOrNull()
+        ?: (context.applicationContext as? LifeKernelApp)?.appContainer
+
+    if (resolvedContainer != null) {
+        CompositionLocalProvider(LocalAppContainer provides resolvedContainer) {
+            AppNavHostContent(
+                modifier = modifier,
+                navigationState = navigationState,
+                drawerState = drawerState
+            )
+        }
+    } else {
+        AppNavHostContent(
+            modifier = modifier,
+            navigationState = navigationState,
+            drawerState = drawerState
+        )
+    }
+}
+
+@Composable
+private fun AppNavHostContent(
+    modifier: Modifier = Modifier,
+    navigationState: AppNavigationState,
+    drawerState: PosDrawerState
 ) {
     // Back navigation rule 2: If drawer is closed and screen is not Home, Back returns to Home.
     // If screen is Home, this handler is disabled so the system back action exits the app.

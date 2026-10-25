@@ -64,9 +64,16 @@ fun QuickAddSheet(
     val context = LocalContext.current
     val focusRequester = remember { FocusRequester() }
 
+    val reducedMotion = PosTheme.reducedMotion
     LaunchedEffect(visible) {
         if (visible) {
-            focusRequester.requestFocus()
+            val enterDuration = if (reducedMotion) 0L else 220L
+            kotlinx.coroutines.delay(enterDuration + 50L)
+            try {
+                focusRequester.requestFocus()
+            } catch (_: Exception) {
+                // Non-critical if sheet was dismissed during enter transition
+            }
         }
     }
 

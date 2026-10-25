@@ -16,6 +16,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -118,16 +120,12 @@ fun PosSheet(
             Column(
                 modifier = modifier
                     .fillMaxWidth()
-                    .imePadding()
                     .navigationBarsPadding()
                     .clip(shape)
                     .background(PosTheme.colors.surfaceVariant, shape)
                     .border(PosTheme.borders.borderStandard, PosTheme.colors.outlineStrong, shape)
                     .testTag("pos_sheet_surface")
-                    .padding(
-                        horizontal = PosTheme.spacing.space4,
-                        vertical = PosTheme.spacing.space3
-                    )
+                    .padding(vertical = PosTheme.spacing.space3)
             ) {
                 // Drag handle
                 Box(
@@ -142,7 +140,15 @@ fun PosSheet(
 
                 Spacer(modifier = Modifier.height(PosTheme.spacing.space3))
 
-                content()
+                // Inner scrollable column with imePadding
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .imePadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = PosTheme.spacing.space4),
+                    content = content
+                )
             }
         }
     }

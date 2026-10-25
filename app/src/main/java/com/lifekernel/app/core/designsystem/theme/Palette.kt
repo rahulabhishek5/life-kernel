@@ -86,10 +86,21 @@ object AccentPalettes {
 
     /**
      * Resolves a palette by its identifier, falling back to [Default] (Lime) if unknown or null.
+     * Guarantees 'lime' strictly maps to [Lime] (#A3E635) and never branches to Red.
      */
     fun fromId(id: String?): AccentPalette {
-        if (id == null) return Default
-        return byId[id] ?: Default
+        if (id.isNullOrBlank()) return Default
+        val normalized = id.trim().lowercase()
+        return when (normalized) {
+            "lime" -> Lime
+            "orange" -> Orange
+            "red" -> Red
+            "blue" -> Blue
+            "purple" -> Purple
+            "amber" -> Amber
+            "mono" -> Mono
+            else -> Default
+        }
     }
 
     /**
