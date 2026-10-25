@@ -6,11 +6,11 @@ Update this file after every meaningful implementation change, in the same chang
 
 ## Current Phase
 
-- **Milestone M2: Database and Task Data Layer (T-007 completed).** Ready for Task T-008 (Task domain, repository, and use cases).
+- **Milestone M2: Database and Task Data Layer (T-007 and T-008 completed).** Milestone M2 complete; ready for Milestone M3 (Planner task list).
 
 ## Current Goal
 
-- Author review and approval of Task T-007 (Room v1 and task DAOs); advance to Task T-008.
+- Author review and approval of Task T-008; transition to Milestone M3: Task T-009 (App shell and navigation).
 
 ## Phase Plan (from PRD v0.1)
 
@@ -127,14 +127,48 @@ Update this file after every meaningful implementation change, in the same chang
     - Instrumented tests: `RoomDaoTest` (CRUD, queries, orphan deletion, Flow observation), `ForeignKeyCascadeTest` (resolving **DB-V1**: proves cascade deletion of subtasks, completions, tag links, and rejection of invalid foreign keys), and `UniqueConstraintTest` (proves case-insensitive tag uniqueness and task completion occurrence uniqueness).
   - Verification: `./gradlew testDebugUnitTest` (43 tests pass), `./gradlew compileDebugAndroidTestKotlin` (0 errors), `./gradlew lintDebug` (0 errors), `./gradlew assembleDebug` (pass), `./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
 
+- **T-008:** Task domain, repository, and use cases:
+  - Implemented pure Kotlin domain models under `com.lifekernel.app.domain.model`:
+    - `Task`: Aggregate root domain model per `DATABASE_SCHEMA.md` §6.2 with `isSubtask` and `isCompleted` properties.
+    - `Tag`: Label domain model per §6.1.
+    - `TaskPriority`: Enum resolving DQ-01 / DB-V6 (NONE=0, LOW=1, MEDIUM=2, HIGH=3).
+    - `TaskStatus`: Enum (OPEN=0, DONE=1).
+    - `TaskRecurrence`: Recurrence configuration data class and `RecurrenceType` enum (NONE=0, DAILY=1, WEEKLY=2, MONTHLY=3).
+    - `TaskCompletion`: Domain completion model preserving exact local date text `completedOn` alongside UTC instant `completedAt`.
+    - `TaskValidator`: Domain validation limits per §2.4 & §6.2 (title 1–200 chars, description <= 10,000 chars, tag 1–40 chars, subtask depth limit 1, subtasks cannot recur, recurring requires due date).
+  - Implemented domain repository contracts under `com.lifekernel.app.domain.repository`:
+    - `TaskRepository`: CRUD operations, reactive observation `Flow`s (overdue + today, today, no due date, completed today, counts, task detail by ID, subtasks), and atomic completion/reopening contracts.
+    - `TagRepository`: CRUD, case-insensitive retrieval, reactive `Flow` observation, and orphan tag cleanup contract.
+  - Implemented domain use cases under `com.lifekernel.app.domain.usecase`:
+    - `CreateTaskUseCase`: Validates task limits and creates task with injected `Clock` timestamps.
+    - `CompleteTaskUseCase`: Atomically records completion and marks task DONE.
+    - `ReopenTaskUseCase`: Atomically removes completion and reverts task to OPEN.
+    - `DeleteTaskUseCase`: Deletes task with cascading subtask/completion cleanup and orphan tag removal.
+    - `UpdateTaskUseCase`: Validates and updates task with refreshed `updatedAt`.
+    - `ObservePlannerTasksUseCase`: Observes reactive `PlannerTasksSnapshot` (overdue, today, completed today, and counts).
+  - Implemented data mappers under `com.lifekernel.app.data.repository.mappers`:
+    - `TaskMapper`: Bidirectional mapping between `TaskEntity` and `Task`.
+    - `TagMapper`: Bidirectional mapping between `TagEntity` and `Tag`.
+    - `TaskCompletionMapper`: Bidirectional mapping between `TaskCompletionEntity` and `TaskCompletion`.
+    - Strictly encapsulated Room entities within `data/` package (zero Room/Android types leaked upward).
+  - Implemented repositories under `com.lifekernel.app.data.repository`:
+    - `TaskRepositoryImpl`: Backed by `LifeKernelDatabase`, `Clock`, and `Dispatchers.IO`. Uses `database.withTransaction` for multi-step mutations: atomic completion (with `completed_at` UTC ms and `completed_on` local date snapshot, reject double-complete), atomic reopening (delete completion, reset status=0, reject re-opening open tasks), atomic task/subtask deletion with orphan tag cleanup, and tag synchronization.
+    - `TagRepositoryImpl`: Backed by `LifeKernelDatabase`, `Clock`, and `Dispatchers.IO`.
+  - Wired repositories in manual DI container `AppContainer` and `DefaultAppContainer` (`val taskRepository`, `val tagRepository`).
+  - Automated test suites:
+    - Unit tests: `TaskValidatorTest` (9 tests for title, description, tag name bounds, subtask depth-1, and recurrence rules), `TaskUseCasesTest` (7 tests using fake repository and `FixedClock`), `LayerBoundaryTest` (3 tests verifying zero platform imports in `domain/`). Total: **59 passing JVM unit tests** (100% success rate).
+    - Repository integration tests: `TaskRepositoryIntegrationTest` (in-memory Room + `FixedClock`: atomic completion/reopen transactions, double-complete rejection, already-open rejection, cascading deletion with orphan tag cleanup, `completed_on` timezone stability, empty database defaults, reactive Flow re-emission) and `TagRepositoryIntegrationTest`.
+  - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (59 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
+
 ## In Progress
 
-- Milestone M2 (Database and Task Data Layer): T-007 completed and verified; awaiting author review before T-008 (Task domain, repository, and use cases).
+- Milestone M2 (Database and Task Data Layer) completed (T-007 and T-008 verified). Ready for author review before advancing to Milestone M3 (Planner task list).
 
 ## Next Up
 
-1. Author review and approval of T-007.
-2. Milestone M2: Task T-008 (Task domain, repository, and use cases).
+1. Author review and approval of Milestone M2 (T-008).
+2. Milestone M3: Task T-009 (App shell and navigation).
+3. Milestone M3: Task T-010 (Planner — tasks view).
 
 ## Open Questions
 
