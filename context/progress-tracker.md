@@ -6,11 +6,11 @@ Update this file after every meaningful implementation change, in the same chang
 
 ## Current Phase
 
-- **Milestone M3: Planner Task List (First Usable Slice — T-010 completed).** Planner tasks view, progress card, section grouping, ViewModel, and test suites implemented. Ready for Task T-011 (Quick-add and completion transition).
+- **Milestone M3: Planner Task List (First Usable Slice — T-011 completed).** Quick-add FAB and modal capture sheet, SM-03 two-interaction capture, 220ms completion transition, and full test suites implemented. Milestone M3 complete and ready for Milestone M4 (Task Management / Settings).
 
 ## Current Goal
 
-- Author review and approval of Task T-010; advance to Task T-011 (Quick-add and completion transition).
+- Author review and formal sign-off for Task T-011 and Milestone M3 closure; advance to Milestone M4 (Task Management / Settings — Task T-013).
 
 ## Phase Plan (from PRD v0.1)
 
@@ -224,15 +224,48 @@ Update this file after every meaningful implementation change, in the same chang
     - Compose UI tests (`PlannerScreenTest` in `app/src/androidTest/...`): Verifies empty state rendering, date header/progress card/sections display, done section expand/collapse, checkbox 48dp minimum touch target, and reduced-motion instant completion.
   - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (68 tests pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass, R8 release APK 1.2 MB).
 
+- **T-011:** Quick-add and completion transition:
+  - Implemented `PosSheet` under `com.lifekernel.app.core.designsystem.components`:
+    - Warm neo-brutalist bottom sheet container.
+    - Top corner radius 8dp (`radiusLarge.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp))`).
+    - 1.5dp `outlineStrong` border, `surfaceVariant` (`#171717`) surface background.
+    - 60% alpha AMOLED black scrim (`PosColors.scrim`).
+    - Centered drag handle (32dp x 4dp, 2dp radius, `outlineStrong`).
+    - Window insets awareness (`imePadding()`, `navigationBarsPadding()`).
+    - 220ms `motionEmphasized` slide transition or instant (0ms) snap on reduced motion (`PosTheme.reducedMotion`).
+    - Accessible dismiss on scrim click or system Back.
+  - Implemented `PlannerQuickAddButton` under `com.lifekernel.app.feature.planner.components`:
+    - Neo-brutalist primary button pinned to bottom-right of `PlannerScreen` (padding `space4` = 16dp).
+    - Accent fill, `onAccent` text ("+ NEW TASK"), 2dp accent border, 3dp accent offset drop block.
+    - 100ms `motionFast` press translation (instant on reduced motion).
+    - Strict 48dp minimum touch target bounding box (`testTag("planner_quick_add_fab")`).
+  - Implemented `QuickAddSheet` under `com.lifekernel.app.feature.planner.components`:
+    - Autofocused title input (`PosTextField` with `FocusRequester`, `ImeAction.Done`, and inline error validation preventing whitespace/empty submission).
+    - Date preset chip row (`PosChip`): `Today` (default), `Tomorrow`, `Pick date` (opens `DatePickerDialog`).
+    - Priority chip row (`PosChip`): `None` (default), `Low ·`, `Med !`, `High !!`.
+    - Primary action button: `PosButton("SAVE", onClick = onSave)`.
+  - Success Metric SM-03 Verification:
+    - Verified two-interaction task capture: Tap Quick-Add FAB -> Type title and press keyboard Done -> task validates, persists to Room database via `CreateTaskUseCase` off the main thread, and sheet dismisses automatically.
+  - Completion Transition:
+    - 220ms `motionEmphasized` completion transition on task row: checkbox toggles, title dims to `textMuted` with animated strikethrough before collapsing smoothly into the Done section.
+    - Under `LocalReducedMotion`, transitions instantly (0ms).
+    - Database write executes immediately on the first line of `onToggleTask`, ensuring zero data loss if process dies during animation.
+  - Manual DI Wiring:
+    - Injected `CreateTaskUseCase` into `PlannerViewModel`.
+    - Exposed `createTaskUseCase` in `AppContainer` and `DefaultAppContainer`.
+  - Automated Test Suites:
+    - Unit tests (`PlannerViewModelTest` in `app/src/test/...`): 9 new tests (14 total in file) covering quick-add open/dismiss visibility, title validation error, preset selection (Today, Tomorrow, Pick date), priority selection (Low, Medium, High), SM-03 submission on Done action, and reduced-motion instant completion. Total: **77 passing JVM unit tests** (100% success rate).
+    - Instrumented tests (`QuickAddFlowTest` in `app/src/androidTest/...`): Verifies FAB display, sheet opening, autofocused title input, SM-03 two-interaction capture, inline title validation error on empty string, date preset and priority selection, 48dp touch targets on all interactive elements, process recreation / rotation state survival, and reduced motion behavior.
+  - Verification: `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` (77 tests pass in 12s), `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` (0 errors), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug` (pass in 1s), `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` (pass in 28s, R8 release APK 1.2 MB).
+
 ## In Progress
 
-- Milestone M3 (Planner Task List): Task T-010 completed; awaiting author review before T-011 (Quick-add and completion transition).
+- Milestone M3 (Planner Task List): Task T-011 completed. Milestone M3 complete and awaiting author review.
 
 ## Next Up
 
-1. Author review and approval of Task T-010.
-2. Milestone M3: Task T-011 (Quick-add and completion transition).
-3. Milestone M3: Task T-012 (Planner testing and milestone verification).
+1. Author review and formal sign-off for Task T-011 and Milestone M3 closure.
+2. Advance to Milestone M4 (Task Management / Settings — Task T-013: Task detail and editing).
 
 ## Open Questions
 

@@ -10,6 +10,7 @@ import com.lifekernel.app.data.repository.TaskRepositoryImpl
 import com.lifekernel.app.domain.repository.TagRepository
 import com.lifekernel.app.domain.repository.TaskRepository
 import com.lifekernel.app.domain.usecase.CompleteTaskUseCase
+import com.lifekernel.app.domain.usecase.CreateTaskUseCase
 import com.lifekernel.app.domain.usecase.ObservePlannerTasksUseCase
 import com.lifekernel.app.domain.usecase.ReopenTaskUseCase
 import com.lifekernel.app.feature.planner.PlannerViewModel
@@ -33,6 +34,7 @@ interface AppContainer {
     val observePlannerTasksUseCase: ObservePlannerTasksUseCase
     val completeTaskUseCase: CompleteTaskUseCase
     val reopenTaskUseCase: ReopenTaskUseCase
+    val createTaskUseCase: CreateTaskUseCase
     fun createPlannerViewModel(): PlannerViewModel
 }
 
@@ -80,11 +82,19 @@ class DefaultAppContainer(
         )
     }
 
+    override val createTaskUseCase: CreateTaskUseCase by lazy {
+        CreateTaskUseCase(
+            taskRepository = taskRepository,
+            clock = clock
+        )
+    }
+
     override fun createPlannerViewModel(): PlannerViewModel {
         return PlannerViewModel(
             observePlannerTasksUseCase = observePlannerTasksUseCase,
             completeTaskUseCase = completeTaskUseCase,
             reopenTaskUseCase = reopenTaskUseCase,
+            createTaskUseCase = createTaskUseCase,
             clock = clock
         )
     }

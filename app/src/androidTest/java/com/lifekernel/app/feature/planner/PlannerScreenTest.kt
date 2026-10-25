@@ -20,6 +20,7 @@ import com.lifekernel.app.core.result.AppError
 import com.lifekernel.app.core.result.AppResult
 import com.lifekernel.app.domain.repository.TaskRepository
 import com.lifekernel.app.domain.usecase.CompleteTaskUseCase
+import com.lifekernel.app.domain.usecase.CreateTaskUseCase
 import com.lifekernel.app.domain.usecase.ObservePlannerTasksUseCase
 import com.lifekernel.app.domain.usecase.ReopenTaskUseCase
 import kotlinx.coroutines.flow.Flow
@@ -57,6 +58,7 @@ class PlannerScreenTest {
             observePlannerTasksUseCase = ObservePlannerTasksUseCase(fakeRepository, clock),
             completeTaskUseCase = CompleteTaskUseCase(fakeRepository),
             reopenTaskUseCase = ReopenTaskUseCase(fakeRepository),
+            createTaskUseCase = CreateTaskUseCase(fakeRepository, clock),
             clock = clock
         )
     }
