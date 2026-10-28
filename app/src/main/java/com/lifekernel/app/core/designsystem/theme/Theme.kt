@@ -92,43 +92,44 @@ fun PosTheme(
     val motionTokens = PosMotion()
     val animationDuration = if (reducedMotion) 0 else motionTokens.motionStandard
 
-    // Animate only accent-derived colors when theme switches (per design-system.md §4)
+    // Animate only accent-derived colors when theme switches (per design-system.md §4).
+    // The animated value is transient; the target palette is always the source of truth so a
+    // palette switch can never be frozen at the previously rendered accent.
+    val targetAccent = palette.accent
     val animatedAccent = animateColorAsState(
-        targetValue = palette.accent,
+        targetValue = targetAccent,
         animationSpec = tween(durationMillis = animationDuration),
         label = "PosThemeAccent"
     ).value
+    val resolvedAccent = if (reducedMotion) targetAccent else animatedAccent
 
-    val baseColors = remember(palette.id, palette.accent) {
-        AccentPalettes.createPosColors(palette)
-    }
-
-    val animatedAccentSubtle = animatedAccent.copy(alpha = 0.16f)
-    val animatedAccentPressed = animatedAccent.copy(alpha = 0.80f).compositeOver(PosColorSurface)
-
-    val dynamicColors = baseColors.copy(
-        accent = animatedAccent,
+    // The selected palette is authoritative. Every accent-derived token is rebuilt from the
+    // resolved accent so Lime (#A3E635) can never remain rendered from a previous palette.
+    val dynamicColors = AccentPalettes.createPosColors(palette).copy(
+        accent = resolvedAccent,
         onAccent = palette.onAccent,
-        accentSubtle = animatedAccentSubtle,
-        accentPressed = animatedAccentPressed
+        accentSubtle = resolvedAccent.copy(alpha = 0.16f),
+        accentPressed = resolvedAccent.copy(alpha = 0.80f).compositeOver(PosColorSurface),
+        heat1 = resolvedAccent.copy(alpha = 0.25f).compositeOver(PosColorBackground),
+        heat2 = resolvedAccent.copy(alpha = 0.45f).compositeOver(PosColorBackground),
+        heat3 = resolvedAccent.copy(alpha = 0.70f).compositeOver(PosColorBackground),
+        heat4 = resolvedAccent.copy(alpha = 1.00f).compositeOver(PosColorBackground)
     )
 
-    val materialColorScheme = remember(dynamicColors) {
-        darkColorScheme(
-            primary = dynamicColors.accent,
-            onPrimary = dynamicColors.onAccent,
-            background = dynamicColors.background,
-            onBackground = dynamicColors.textPrimary,
-            surface = dynamicColors.surface,
-            onSurface = dynamicColors.textPrimary,
-            surfaceVariant = dynamicColors.surfaceVariant,
-            onSurfaceVariant = dynamicColors.textMuted,
-            outline = dynamicColors.outlineStrong,
-            outlineVariant = dynamicColors.outlineSubtle,
-            error = dynamicColors.stateError,
-            onError = PosColorBackground
-        )
-    }
+    val materialColorScheme = darkColorScheme(
+        primary = dynamicColors.accent,
+        onPrimary = dynamicColors.onAccent,
+        background = dynamicColors.background,
+        onBackground = dynamicColors.textPrimary,
+        surface = dynamicColors.surface,
+        onSurface = dynamicColors.textPrimary,
+        surfaceVariant = dynamicColors.surfaceVariant,
+        onSurfaceVariant = dynamicColors.textMuted,
+        outline = dynamicColors.outlineStrong,
+        outlineVariant = dynamicColors.outlineSubtle,
+        error = dynamicColors.stateError,
+        onError = PosColorBackground
+    )
 
     CompositionLocalProvider(
         LocalPosColors provides dynamicColors,

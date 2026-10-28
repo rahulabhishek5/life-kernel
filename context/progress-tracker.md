@@ -2,7 +2,7 @@
 
 Update this file after every meaningful implementation change, in the same change as the work.
 
-*Last updated: 2026-10-25*
+*Last updated: 2026-10-28*
 
 ## Current Phase
 
@@ -305,9 +305,25 @@ Update this file after every meaningful implementation change, in the same chang
     - **On-Device Instrumented Tests:** 59 tests passed, 0 failures on physical hardware `2412DPC0AI` (`RK6DY5ONUOHMTKDM`).
     - **Lint & Size Budget:** 0 lint errors (`lintDebug`), release APK strictly 1.4 MB (< 1.5 MB budget), audited 0 network permissions (`uses-permission` has NO internet access).
 
+- **Follow-up Hardware Defect Resolution (2026-10-28):**
+  - **Lime / Green palette never applied after Orange, Red, or Blue:**
+    - Root Cause: `PosTheme` built `PosColors` through a memoized `remember(palette.id, palette.accent)` while the `accent` token was sourced from the transient `animateColorAsState` value. The memoized instance could therefore be created on the palette-change frame with the previous accent still animating, freezing the rendered accent at the old palette. Additionally, both screens recreated their ViewModel on every recomposition through composable default arguments, so Settings could display its default Lime `ACTIVE` state while the app-level color source of truth stayed on the old palette.
+    - Fix: `Theme.kt` now always derives `PosColors` from the target `palette` and overlays the transient animated accent; when reduced motion is active it uses the target accent directly. Removed the `remember` memoization from both `PosColors` and the Material `ColorScheme`. `MainActivity` now collects the repository palette with `collectAsStateWithLifecycle`. `SettingsRepositoryImpl.setThemePalette` always writes the canonical registry id, including `"lime"`. `SettingsScreen` and `PlannerScreen` now retain a single ViewModel via `remember` instead of constructing one on every recomposition.
+    - Regression coverage: `SettingsViewModelTest.selectLimeAfterAnotherPalette_alwaysDispatchesAndRestoresLime` asserts that selecting Lime (including repeating the current palette) always dispatches and restores `#A3E635`.
+  - **Accent-colored line bleeding under the top bar on Settings scroll:**
+    - Fix: `PosTopBar` is now hosted in an opaque `Surface` (`PosTheme.colors.background`, zero tonal elevation) with `zIndex(1f)`, full-width background, and `statusBarsPadding()` inside the surface so the black background covers the status-bar area. The 1dp bottom divider remains `PosTheme.colors.divider` (`#303030`), never accent. `SettingsScreen` scroll content now uses `Modifier.weight(1f)` instead of `fillMaxSize()` so it cannot draw over the bar.
+  - **Primary / FAB / empty-state button rendered flat with no 3dp offset block:**
+    - Fix: `PosButton` now draws the neo-brutalist drop block with `Modifier.drawBehind` at exactly `offsetShadow` (3dp) on both axes using the resolved shape outline, filled with `PosTheme.colors.accent` and stroked with `PosTheme.colors.outlineStrong` at `borderStrong` (2dp). The foreground face keeps its 2dp contrasting `background` border and 100ms press translation; the drop block is rendered outside the face bounds rather than relying on a `matchParentSize` sibling, so it cannot be lost to layout/clipping.
+  - **Quick-add sheet presentation and focus:**
+    - Fix: `PlannerScreen` and `SettingsScreen` no longer recreate their ViewModels on recomposition, so `isQuickAddVisible = true` set by `PlannerViewModel.onOpenQuickAdd()` survives the resulting recomposition. `QuickAddSheet` still defers `FocusRequester.requestFocus()` until after the sheet entrance animation, now using the `motionEmphasized` token instead of a hardcoded duration.
+  - Verification:
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` — BUILD SUCCESSFUL; 89 tests, 0 failures, 0 errors, 0 skipped.
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL, 0 errors.
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` — BUILD SUCCESSFUL.
+
 ## In Progress
 
-- Post-T-012 Stability Audit & Visual/Interaction Defect Resolution completed. Awaiting author review.
+- Post-T-012 Stability Audit & Visual/Interaction Defect Resolution completed. Follow-up hardware defect resolution (Lime palette, top bar bleed, button offset, quick-add presentation) completed. Awaiting author review.
 
 ## Next Up
 

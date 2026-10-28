@@ -17,8 +17,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,9 +42,13 @@ import com.lifekernel.app.domain.model.DefaultPlannerView
 fun SettingsScreen(
     onOpenDrawer: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: SettingsViewModel = LocalAppContainer.current.createSettingsViewModel()
+    viewModel: SettingsViewModel? = null
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val container = if (viewModel == null) LocalAppContainer.current else null
+    val resolvedViewModel = viewModel ?: remember(container) {
+        requireNotNull(container).createSettingsViewModel()
+    }
+    val uiState by resolvedViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -58,7 +63,8 @@ fun SettingsScreen(
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = PosTheme.spacing.space4)
         ) {
@@ -77,7 +83,7 @@ fun SettingsScreen(
                 val isSelected = palette.id == uiState.selectedPalette.id
                 PosCard(
                     isSelected = isSelected,
-                    onClick = { viewModel.selectPalette(palette) },
+                    onClick = { resolvedViewModel.selectPalette(palette) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = PosTheme.spacing.space2)
@@ -153,7 +159,7 @@ fun SettingsScreen(
                 selectedIndex = selectedIndex,
                 onOptionSelected = { index ->
                     val chosen = if (index == 0) DefaultPlannerView.TASKS else DefaultPlannerView.TIMETABLE
-                    viewModel.selectDefaultPlannerView(chosen)
+                    resolvedViewModel.selectDefaultPlannerView(chosen)
                 },
                 modifier = Modifier
                     .fillMaxWidth()

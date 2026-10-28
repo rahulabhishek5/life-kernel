@@ -65,9 +65,10 @@ fun QuickAddSheet(
     val focusRequester = remember { FocusRequester() }
 
     val reducedMotion = PosTheme.reducedMotion
+    val sheetMotion = PosTheme.motion
     LaunchedEffect(visible) {
         if (visible) {
-            val enterDuration = if (reducedMotion) 0L else 220L
+            val enterDuration = if (reducedMotion) 0L else sheetMotion.motionEmphasized.toLong()
             kotlinx.coroutines.delay(enterDuration + 50L)
             try {
                 focusRequester.requestFocus()
@@ -215,6 +216,7 @@ fun QuickAddSheet(
             PosButton(
                 text = "SAVE",
                 onClick = onSave,
+                fillMaxWidth = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("quick_add_save_button")

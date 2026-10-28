@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -18,7 +19,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -43,7 +48,8 @@ fun PosButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     variant: PosButtonVariant = PosButtonVariant.Primary,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    fillMaxWidth: Boolean = false
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -138,6 +144,16 @@ fun PosButton(
         }
     }
 
+    val hasOffsetBlock = variant == PosButtonVariant.Primary && enabled
+    val shadowColor = PosTheme.colors.accent
+    val shadowOutline = PosTheme.colors.outlineStrong
+    val shadowBorder = PosTheme.borders.borderStrong
+
+    // The primary face always carries a crisp 2dp background-colored border so it reads as a
+    // separate slab in front of the accent offset block instead of merging into it.
+    val faceBorderColor = if (hasOffsetBlock) PosTheme.colors.background else style.borderColor
+    val faceBorderWidth = if (hasOffsetBlock) PosTheme.borders.borderStrong else style.borderWidth
+
     Box(
         modifier = modifier
             .defaultMinSize(
@@ -145,9 +161,22 @@ fun PosButton(
                 minHeight = PosTheme.spacing.minTouchTarget
             )
             .padding(
-                end = if (variant == PosButtonVariant.Primary && enabled) offsetDepth else PosTheme.spacing.space1 * 0,
-                bottom = if (variant == PosButtonVariant.Primary && enabled) offsetDepth else PosTheme.spacing.space1 * 0
+                end = if (hasOffsetBlock) offsetDepth else PosTheme.spacing.space1 * 0,
+                bottom = if (hasOffsetBlock) offsetDepth else PosTheme.spacing.space1 * 0
             )
+            .drawBehind {
+                if (hasOffsetBlock) {
+                    val outline = shape.createOutline(size, layoutDirection, this)
+                    translate(left = offsetDepth.toPx(), top = offsetDepth.toPx()) {
+                        drawOutline(outline, color = shadowColor)
+                        drawOutline(
+                            outline = outline,
+                            color = shadowOutline,
+                            style = Stroke(width = shadowBorder.toPx())
+                        )
+                    }
+                }
+            }
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -156,27 +185,16 @@ fun PosButton(
             )
             .semantics { role = Role.Button }
     ) {
-        // Offset block behind primary button (neo-brutalist tactile depth)
-        if (variant == PosButtonVariant.Primary && enabled) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = offsetDepth, y = offsetDepth)
-                    .clip(shape)
-                    .background(PosTheme.colors.accent)
-                    .border(PosTheme.borders.borderStandard, PosTheme.colors.outlineStrong, shape)
-            )
-        }
-
-        // Foreground button
+        // Foreground button face, translated over the offset block while pressed.
         Box(
             modifier = Modifier
+                .then(if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier)
                 .offset(x = currentOffset, y = currentOffset)
                 .clip(shape)
                 .background(style.backgroundColor)
                 .then(
-                    if (style.borderWidth > PosTheme.borders.borderHairline * 0) {
-                        Modifier.border(style.borderWidth, style.borderColor, shape)
+                    if (faceBorderWidth > PosTheme.borders.borderHairline * 0) {
+                        Modifier.border(faceBorderWidth, faceBorderColor, shape)
                     } else Modifier
                 )
                 .defaultMinSize(

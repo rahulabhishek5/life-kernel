@@ -41,7 +41,9 @@ class SettingsViewModel(
 
     fun selectPalette(palette: AccentPalette) {
         scope.launch {
-            settingsRepository.setThemePalette(palette.id)
+            // Resolve through the registry so the canonical id (including "lime") is always
+            // persisted, even when the palette object arrives with a differently cased id.
+            settingsRepository.setThemePalette(AccentPalettes.fromId(palette.id).id)
         }
     }
 

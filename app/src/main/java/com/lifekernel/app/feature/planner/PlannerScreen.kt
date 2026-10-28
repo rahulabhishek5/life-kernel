@@ -14,9 +14,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -44,9 +45,13 @@ import com.lifekernel.app.feature.planner.components.QuickAddSheet
 fun PlannerScreen(
     onOpenDrawer: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: PlannerViewModel = LocalAppContainer.current.createPlannerViewModel()
+    viewModel: PlannerViewModel? = null
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val container = if (viewModel == null) LocalAppContainer.current else null
+    val resolvedViewModel = viewModel ?: remember(container) {
+        requireNotNull(container).createPlannerViewModel()
+    }
+    val uiState by resolvedViewModel.uiState.collectAsStateWithLifecycle()
     val reducedMotion = PosTheme.reducedMotion
     val currentQuickAddVisible by rememberUpdatedState(uiState.isQuickAddVisible)
 
@@ -54,7 +59,7 @@ fun PlannerScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME && !currentQuickAddVisible) {
-                viewModel.checkDayRollover()
+                resolvedViewModel.checkDayRollover()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -79,7 +84,6 @@ fun PlannerScreen(
 
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
                     .weight(1f)
                     .testTag("planner_task_list"),
                 verticalArrangement = Arrangement.spacedBy(PosTheme.spacing.space2)
@@ -102,7 +106,7 @@ fun PlannerScreen(
                             label = "NOTHING PLANNED",
                             guidance = "Add your first task for today.",
                             actionText = "+ ADD TASK",
-                            onActionClick = viewModel::onOpenQuickAdd,
+                            onActionClick = resolvedViewModel::onOpenQuickAdd,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = PosTheme.spacing.space6)
@@ -128,7 +132,7 @@ fun PlannerScreen(
                     ) { task ->
                         PlannerTaskRow(
                             task = task,
-                            onToggle = { viewModel.onToggleTask(it, reducedMotion) },
+                            onToggle = { resolvedViewModel.onToggleTask(it, reducedMotion) },
                             isOverdue = true,
                             modifier = Modifier.padding(horizontal = PosTheme.spacing.space4)
                         )
@@ -151,7 +155,7 @@ fun PlannerScreen(
                     ) { task ->
                         PlannerTaskRow(
                             task = task,
-                            onToggle = { viewModel.onToggleTask(it, reducedMotion) },
+                            onToggle = { resolvedViewModel.onToggleTask(it, reducedMotion) },
                             isOverdue = false,
                             modifier = Modifier.padding(horizontal = PosTheme.spacing.space4)
                         )
@@ -165,7 +169,7 @@ fun PlannerScreen(
                             title = "DONE",
                             count = uiState.doneTasks.size,
                             isCollapsed = uiState.isDoneCollapsed,
-                            onToggle = viewModel::onToggleDoneSection
+                            onToggle = resolvedViewModel::onToggleDoneSection
                         )
                     }
 
@@ -177,7 +181,7 @@ fun PlannerScreen(
                         ) { task ->
                             PlannerTaskRow(
                                 task = task,
-                                onToggle = { viewModel.onToggleTask(it, reducedMotion) },
+                                onToggle = { resolvedViewModel.onToggleTask(it, reducedMotion) },
                                 isOverdue = false,
                                 modifier = Modifier.padding(horizontal = PosTheme.spacing.space4)
                             )
@@ -196,13 +200,15 @@ fun PlannerScreen(
             }
         }
 
-        // Quick-Add Floating Action Button
-        PlannerQuickAddButton(
-            onClick = viewModel::onOpenQuickAdd,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-        )
+        // Quick-Add Floating Action Button — hidden when screen is empty (empty state CTA replaces it)
+        if (!uiState.isPlannedEmpty) {
+            PlannerQuickAddButton(
+                onClick = resolvedViewModel::onOpenQuickAdd,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+            )
+        }
 
         // Modal Quick-Add Sheet
         QuickAddSheet(
@@ -212,12 +218,12 @@ fun PlannerScreen(
             selectedDatePreset = uiState.quickAddDatePreset,
             customDate = uiState.quickAddCustomDate,
             selectedPriority = uiState.quickAddPriority,
-            onTitleChange = viewModel::onQuickAddTitleChanged,
-            onDatePresetSelect = viewModel::onQuickAddDatePresetSelected,
-            onCustomDatePicked = viewModel::onQuickAddCustomDatePicked,
-            onPrioritySelect = viewModel::onQuickAddPrioritySelected,
-            onSave = { viewModel.onSaveQuickAdd() },
-            onDismissRequest = viewModel::onDismissQuickAdd
+            onTitleChange = resolvedViewModel::onQuickAddTitleChanged,
+            onDatePresetSelect = resolvedViewModel::onQuickAddDatePresetSelected,
+            onCustomDatePicked = resolvedViewModel::onQuickAddCustomDatePicked,
+            onPrioritySelect = resolvedViewModel::onQuickAddPrioritySelected,
+            onSave = { resolvedViewModel.onSaveQuickAdd() },
+            onDismissRequest = resolvedViewModel::onDismissQuickAdd
         )
     }
 }

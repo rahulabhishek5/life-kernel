@@ -72,6 +72,21 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun selectLimeAfterAnotherPalette_alwaysDispatchesAndRestoresLime() = runBlocking {
+        viewModel.selectPalette(AccentPalettes.Blue)
+        assertEquals("blue", fakeRepository.currentPaletteId)
+
+        viewModel.selectPalette(AccentPalettes.Lime)
+
+        assertEquals("Lime selection must never be swallowed", "lime", fakeRepository.currentPaletteId)
+        assertEquals(AccentPalettes.Lime, viewModel.uiState.value.selectedPalette)
+        assertEquals("Selecting the current palette must still dispatch", 2, fakeRepository.setThemePaletteCalls)
+
+        viewModel.selectPalette(AccentPalettes.Lime)
+        assertEquals("A repeated Lime tap must still dispatch", 3, fakeRepository.setThemePaletteCalls)
+    }
+
+    @Test
     fun selectDefaultPlannerView_updatesRepositoryAndState() = runBlocking {
         viewModel.selectDefaultPlannerView(DefaultPlannerView.TIMETABLE)
 
@@ -90,6 +105,8 @@ class SettingsViewModelTest {
 private class FakeSettingsRepository : SettingsRepository {
     var currentPaletteId: String = AccentPalettes.Default.id
     var currentView: DefaultPlannerView = DefaultPlannerView.TASKS
+    var setThemePaletteCalls: Int = 0
+        private set
 
     private val paletteFlow = MutableStateFlow(AccentPalettes.Default)
     private val viewFlow = MutableStateFlow(DefaultPlannerView.TASKS)
@@ -101,6 +118,7 @@ private class FakeSettingsRepository : SettingsRepository {
     override fun observeDefaultPlannerView(): Flow<DefaultPlannerView> = viewFlow
 
     override suspend fun setThemePalette(paletteId: String) {
+        setThemePaletteCalls++
         currentPaletteId = paletteId
         paletteFlow.value = AccentPalettes.fromId(paletteId)
     }

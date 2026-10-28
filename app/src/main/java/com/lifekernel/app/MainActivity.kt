@@ -5,10 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.lifecycle.flowWithLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lifekernel.app.core.designsystem.theme.AccentPalettes
 import com.lifekernel.app.core.designsystem.theme.PosTheme
 import com.lifekernel.app.di.LocalAppContainer
@@ -27,9 +25,8 @@ class MainActivity : ComponentActivity() {
         val settingsRepository = app.appContainer.settingsRepository
 
         setContent {
-            val activePalette by remember(settingsRepository, lifecycle) {
-                settingsRepository.observeThemePalette().flowWithLifecycle(lifecycle)
-            }.collectAsState(initial = AccentPalettes.Default)
+            val activePalette by settingsRepository.observeThemePalette()
+                .collectAsStateWithLifecycle(initialValue = AccentPalettes.Default)
 
             CompositionLocalProvider(LocalAppContainer provides app.appContainer) {
                 PosTheme(palette = activePalette) {

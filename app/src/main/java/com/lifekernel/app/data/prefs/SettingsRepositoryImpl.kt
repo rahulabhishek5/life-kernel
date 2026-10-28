@@ -66,7 +66,10 @@ class SettingsRepositoryImpl(
     override suspend fun setThemePalette(paletteId: String) {
         withContext(dispatcher) {
             dataStore.edit { preferences ->
-                preferences[SettingsPreferences.KEY_THEME_PALETTE_ID] = paletteId.trim().lowercase()
+                // Always persist, including the default "lime" id. Canonicalizing through the
+                // registry guarantees the stored id round-trips to the exact selected palette.
+                preferences[SettingsPreferences.KEY_THEME_PALETTE_ID] =
+                    AccentPalettes.fromId(paletteId).id
             }
         }
     }
