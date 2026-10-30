@@ -171,4 +171,21 @@ class NavigationTest {
         navState.navigateToHome()
         assertEquals(Screen.Home, navState.currentScreen)
     }
+
+    @Test
+    fun taskDetailNavigation_navigatesToDetailAndBackPops() {
+        val navState = AppNavigationState(initialScreen = Screen.Home)
+
+        // 1. Initial on Home
+        assertEquals(Screen.Home, navState.currentScreen)
+
+        // 2. Navigate to TaskDetail
+        navState.navigateTo(Screen.TaskDetail(42L))
+        assertEquals(Screen.TaskDetail(42L), navState.currentScreen)
+
+        // 3. Back pops back stack to Home
+        val popped = navState.navigateBack()
+        assertTrue(popped)
+        assertEquals(Screen.Home, navState.currentScreen)
+    }
 }

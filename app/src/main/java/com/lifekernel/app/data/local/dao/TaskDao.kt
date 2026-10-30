@@ -42,6 +42,24 @@ interface TaskDao {
     @Query(
         """
         SELECT * FROM tasks
+        WHERE parent_id IS NULL
+        ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, priority DESC, id ASC
+        """
+    )
+    fun observeAllTopLevelTasks(): Flow<List<TaskEntity>>
+
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE parent_id IS NULL
+        ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, priority DESC, id ASC
+        """
+    )
+    suspend fun getAllTopLevelTasks(): List<TaskEntity>
+
+    @Query(
+        """
+        SELECT * FROM tasks
         WHERE status = 0 AND parent_id IS NULL AND due_date IS NOT NULL AND due_date <= :today
         ORDER BY due_date ASC, priority DESC, id ASC
         """
@@ -78,4 +96,7 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET status = :status, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateTaskStatus(id: Long, status: Int, updatedAt: Long): Int
+
+    @Query("SELECT * FROM tasks ORDER BY id ASC")
+    suspend fun getAllTasks(): List<TaskEntity>
 }

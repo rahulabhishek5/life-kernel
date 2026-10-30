@@ -40,7 +40,8 @@ class TaskRepositoryImpl(
             .map { entities ->
                 entities.map { entity ->
                     val tags = database.taskTagDao().getTagsForTask(entity.id).map { it.toDomain() }
-                    entity.toDomain(tags = tags)
+                    val subtasks = database.taskDao().getSubtasks(entity.id).map { it.toDomain() }
+                    entity.toDomain(tags = tags, subtasks = subtasks)
                 }
             }
             .flowOn(dispatcher)
@@ -52,7 +53,8 @@ class TaskRepositoryImpl(
             .map { entities ->
                 entities.map { entity ->
                     val tags = database.taskTagDao().getTagsForTask(entity.id).map { it.toDomain() }
-                    entity.toDomain(tags = tags)
+                    val subtasks = database.taskDao().getSubtasks(entity.id).map { it.toDomain() }
+                    entity.toDomain(tags = tags, subtasks = subtasks)
                 }
             }
             .flowOn(dispatcher)
@@ -63,7 +65,8 @@ class TaskRepositoryImpl(
             .map { entities ->
                 entities.map { entity ->
                     val tags = database.taskTagDao().getTagsForTask(entity.id).map { it.toDomain() }
-                    entity.toDomain(tags = tags)
+                    val subtasks = database.taskDao().getSubtasks(entity.id).map { it.toDomain() }
+                    entity.toDomain(tags = tags, subtasks = subtasks)
                 }
             }
             .flowOn(dispatcher)
@@ -75,7 +78,8 @@ class TaskRepositoryImpl(
             .map { entities ->
                 entities.map { entity ->
                     val tags = database.taskTagDao().getTagsForTask(entity.id).map { it.toDomain() }
-                    entity.toDomain(tags = tags)
+                    val subtasks = database.taskDao().getSubtasks(entity.id).map { it.toDomain() }
+                    entity.toDomain(tags = tags, subtasks = subtasks)
                 }
             }
             .flowOn(dispatcher)
@@ -85,6 +89,26 @@ class TaskRepositoryImpl(
         val dateStr = date.toString()
         return database.taskCompletionDao().observeCompletedCountForDate(dateStr)
             .flowOn(dispatcher)
+    }
+
+    override fun observeAllTasks(): Flow<List<Task>> {
+        return database.taskDao().observeAllTopLevelTasks()
+            .map { entities ->
+                entities.map { entity ->
+                    val tags = database.taskTagDao().getTagsForTask(entity.id).map { it.toDomain() }
+                    val subtasks = database.taskDao().getSubtasks(entity.id).map { it.toDomain() }
+                    entity.toDomain(tags = tags, subtasks = subtasks)
+                }
+            }
+            .flowOn(dispatcher)
+    }
+
+    override suspend fun getAllTasks(): List<Task> = withContext(dispatcher) {
+        database.taskDao().getAllTopLevelTasks().map { entity ->
+            val tags = database.taskTagDao().getTagsForTask(entity.id).map { it.toDomain() }
+            val subtasks = database.taskDao().getSubtasks(entity.id).map { it.toDomain() }
+            entity.toDomain(tags = tags, subtasks = subtasks)
+        }
     }
 
     override fun observeTaskById(id: Long): Flow<Task?> {
@@ -149,6 +173,7 @@ class TaskRepositoryImpl(
                 val nowEpoch = clock.nowEpochMillis()
                 val entity = task.toEntity().copy(
                     createdAt = existing.createdAt,
+                    status = existing.status,
                     updatedAt = nowEpoch
                 )
                 database.taskDao().updateTask(entity)

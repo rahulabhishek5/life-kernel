@@ -267,6 +267,24 @@ class FakeTaskRepository : TaskRepository {
         return tasksFlow.map { completedCounts[date] ?: 0 }
     }
 
+    override fun observeAllTasks(): Flow<List<Task>> {
+        return tasksFlow.map { map ->
+            map.values.filter { !it.isSubtask }.sortedWith(
+                compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                    .thenByDescending { it.priority.code }
+                    .thenBy { it.id }
+            )
+        }
+    }
+
+    override suspend fun getAllTasks(): List<Task> {
+        return tasks.values.filter { !it.isSubtask }.sortedWith(
+            compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                .thenByDescending { it.priority.code }
+                .thenBy { it.id }
+        )
+    }
+
     override fun observeTaskById(id: Long): Flow<Task?> {
         return tasksFlow.map { it[id] }
     }
@@ -288,10 +306,8 @@ class FakeTaskRepository : TaskRepository {
     }
 
     override suspend fun updateTask(task: Task, tagIds: List<Long>?): AppResult<Unit> {
-        if (!tasks.containsKey(task.id)) {
-            return AppResult.failure(AppError.NotFound("Task ${task.id} not found"))
-        }
-        tasks[task.id] = task
+        val existing = tasks[task.id] ?: return AppResult.failure(AppError.NotFound("Task ${task.id} not found"))
+        tasks[task.id] = task.copy(status = existing.status)
         notifyChanged()
         return AppResult.success(Unit)
     }

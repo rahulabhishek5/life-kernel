@@ -39,6 +39,7 @@ fun PosTextField(
     errorMessage: String? = null,
     singleLine: Boolean = true,
     enabled: Boolean = true,
+    leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -85,6 +86,11 @@ fun PosTextField(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (leadingIcon != null) {
+                leadingIcon()
+                Spacer(modifier = Modifier.width(PosTheme.spacing.space2))
+            }
+
             Box(modifier = Modifier.weight(1f)) {
                 if (value.isEmpty() && placeholder != null) {
                     Text(

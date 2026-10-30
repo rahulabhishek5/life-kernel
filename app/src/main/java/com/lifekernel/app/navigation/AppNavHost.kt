@@ -19,17 +19,19 @@ import com.lifekernel.app.core.designsystem.components.rememberPosDrawerState
 import com.lifekernel.app.core.designsystem.theme.PosTheme
 import com.lifekernel.app.di.AppContainer
 import com.lifekernel.app.di.LocalAppContainer
+import com.lifekernel.app.domain.model.Task
 import com.lifekernel.app.feature.planner.PlannerScreen
 import com.lifekernel.app.feature.settings.SettingsScreen
+import com.lifekernel.app.feature.tasks.TaskDetailScreen
 
 /**
  * Top-level application shell and navigation host per ARCHITECTURE.md §12a.
- * Hosts modal navigation drawer and switches between top-level destinations with a 160ms crossfade.
+ * Hosts modal navigation drawer and switches between destinations with a 160ms crossfade.
  *
  * Implements predictable back navigation hierarchy:
  * 1. Closes drawer if open.
- * 2. Returns to Home / Today if on Settings.
- * 3. Pops backstack / exits when already on Home / Today.
+ * 2. Pops back stack if on detail destination or returns to Home / Today if on Settings.
+ * 3. Exits when already on Home / Today.
  */
 @Composable
 fun AppNavHost(
@@ -66,10 +68,12 @@ private fun AppNavHostContent(
     navigationState: AppNavigationState,
     drawerState: PosDrawerState
 ) {
-    // Back navigation rule 2: If drawer is closed and screen is not Home, Back returns to Home.
+    // Back navigation rule 2: If drawer is closed and screen is not Home, Back pops back stack.
     // If screen is Home, this handler is disabled so the system back action exits the app.
     BackHandler(enabled = drawerState.isClosed && navigationState.currentScreen != Screen.Home) {
-        navigationState.navigateToHome()
+        if (!navigationState.navigateBack()) {
+            navigationState.navigateToHome()
+        }
     }
 
     PosDrawer(
@@ -115,12 +119,23 @@ private fun AppNavHostContent(
             label = "top_level_crossfade",
             modifier = Modifier.fillMaxSize()
         ) { screen ->
-            when (screen) {
+            when (val currentScreen = screen) {
                 Screen.Home -> PlannerScreen(
-                    onOpenDrawer = { drawerState.open() }
+                    onOpenDrawer = { drawerState.open() },
+                    onTaskClick = { task ->
+                        navigationState.navigateTo(Screen.TaskDetail(task.id))
+                    }
                 )
                 Screen.Settings -> SettingsScreen(
                     onOpenDrawer = { drawerState.open() }
+                )
+                is Screen.TaskDetail -> TaskDetailScreen(
+                    taskId = currentScreen.taskId,
+                    onBack = {
+                        if (!navigationState.navigateBack()) {
+                            navigationState.navigateToHome()
+                        }
+                    }
                 )
             }
         }

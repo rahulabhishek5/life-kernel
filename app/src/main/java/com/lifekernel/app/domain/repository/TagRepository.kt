@@ -41,4 +41,22 @@ interface TagRepository {
      * Returns the count of deleted orphan tags.
      */
     suspend fun deleteOrphanTags(): AppResult<Int>
+
+    /**
+     * Observes tags linked to [taskId] ordered alphabetically by name.
+     */
+    fun observeTagsForTask(taskId: Long): Flow<List<Tag>>
+
+    /**
+     * Fetches tags linked to [taskId] ordered alphabetically by name.
+     */
+    suspend fun getTagsForTask(taskId: Long): List<Tag>
+
+    /**
+     * Atomically synchronizes the given list of [tagNames] with [taskId].
+     * Normalizes names to lowercase, creates any non-existent tags, links them in task_tags,
+     * unlinks removed tags, and prunes any orphan tags in a single atomic transaction.
+     * Returns the updated list of tags on success.
+     */
+    suspend fun syncTaskTags(taskId: Long, tagNames: List<String>): AppResult<List<Tag>>
 }

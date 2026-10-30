@@ -49,4 +49,7 @@ interface TaskTagDao {
 
     @Query("SELECT task_id FROM task_tags WHERE tag_id = :tagId")
     suspend fun getTaskIdsForTag(tagId: Long): List<Long>
+
+    @Query("SELECT * FROM task_tags ORDER BY task_id ASC, tag_id ASC")
+    suspend fun getAllTaskTags(): List<TaskTagEntity>
 }

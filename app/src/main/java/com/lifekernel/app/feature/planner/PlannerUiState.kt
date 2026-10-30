@@ -28,8 +28,20 @@ data class PlannerUiState(
     val quickAddTitleError: String? = null,
     val quickAddDatePreset: QuickAddDatePreset = QuickAddDatePreset.TODAY,
     val quickAddCustomDate: LocalDate? = null,
-    val quickAddPriority: TaskPriority = TaskPriority.NONE
+    val quickAddPriority: TaskPriority = TaskPriority.NONE,
+    val isSearchActive: Boolean = false,
+    val searchQuery: String = "",
+    val selectedPriorityFilter: TaskPriority? = null,
+    val selectedTagFilter: String? = null,
+    val availableFilterTags: List<String> = emptyList(),
+    val filteredTasks: List<Task> = emptyList()
 ) {
     val isPlannedEmpty: Boolean
         get() = overdueTasks.isEmpty() && todayTasks.isEmpty()
+
+    val isFilterActive: Boolean
+        get() = searchQuery.trim().isNotEmpty() || selectedPriorityFilter != null || !selectedTagFilter.isNullOrBlank()
+
+    val isSearchEmpty: Boolean
+        get() = isFilterActive && filteredTasks.isEmpty()
 }

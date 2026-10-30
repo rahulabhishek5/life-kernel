@@ -11,8 +11,8 @@ object TaskValidator {
     const val MIN_TITLE_LENGTH = 1
     const val MAX_TITLE_LENGTH = 200
     const val MAX_DESCRIPTION_LENGTH = 10_000
-    const val MIN_TAG_LENGTH = 1
-    const val MAX_TAG_LENGTH = 40
+    const val MIN_TAG_LENGTH = TagValidator.MIN_TAG_LENGTH
+    const val MAX_TAG_LENGTH = TagValidator.MAX_TAG_LENGTH
     const val MIN_RECUR_INTERVAL = 1
     const val MAX_RECUR_INTERVAL = 365
 
@@ -53,24 +53,7 @@ object TaskValidator {
     }
 
     fun validateTagName(name: String): AppResult<String> {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) {
-            return AppResult.failure(
-                AppError.Validation(
-                    message = "Tag name cannot be empty",
-                    field = "name"
-                )
-            )
-        }
-        if (trimmed.length > MAX_TAG_LENGTH) {
-            return AppResult.failure(
-                AppError.Validation(
-                    message = "Tag name cannot exceed $MAX_TAG_LENGTH characters",
-                    field = "name"
-                )
-            )
-        }
-        return AppResult.success(trimmed)
+        return TagValidator.validateTagName(name)
     }
 
     fun validateTask(task: Task): AppResult<Unit> {
@@ -82,6 +65,16 @@ object TaskValidator {
         val descResult = validateDescription(task.description)
         if (descResult.isFailure) {
             return AppResult.failure(descResult.errorOrNull()!!)
+        }
+
+        // Start date vs Due date rule
+        if (task.startDate != null && task.dueDate != null && task.startDate > task.dueDate) {
+            return AppResult.failure(
+                AppError.Validation(
+                    message = "Start date cannot be after due date",
+                    field = "startDate"
+                )
+            )
         }
 
         // Subtask depth rule: Depth is 1 (subtasks cannot have subtasks)

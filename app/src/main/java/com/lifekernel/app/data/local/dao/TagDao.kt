@@ -30,4 +30,7 @@ interface TagDao {
 
     @Query("DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM task_tags)")
     suspend fun deleteOrphanTags(): Int
+
+    @Query("SELECT * FROM tags ORDER BY id ASC")
+    suspend fun getAllTags(): List<TagEntity>
 }

@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.lifekernel.app.data.local.dao.SubtaskDao
 import com.lifekernel.app.data.local.dao.TagDao
 import com.lifekernel.app.data.local.dao.TaskCompletionDao
 import com.lifekernel.app.data.local.dao.TaskDao
@@ -38,8 +39,10 @@ abstract class LifeKernelDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun taskCompletionDao(): TaskCompletionDao
     abstract fun taskTagDao(): TaskTagDao
+    abstract fun subtaskDao(): SubtaskDao
 
     companion object {
+        const val SCHEMA_VERSION = 1
         const val DATABASE_NAME = "lifekernel.db"
 
         fun create(context: Context, databaseName: String = DATABASE_NAME): LifeKernelDatabase {

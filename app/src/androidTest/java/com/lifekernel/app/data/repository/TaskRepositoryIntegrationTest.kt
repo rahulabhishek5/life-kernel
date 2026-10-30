@@ -288,4 +288,55 @@ class TaskRepositoryIntegrationTest {
         assertEquals(0, completedFlow.first().size)
         assertEquals(0, countFlow.first())
     }
+
+    @Test
+    fun updateTask_editingCompletedTask_preservesStatusAndCompletionsIntact() = runBlocking {
+        // Critical Invariant (AC-TASK): Editing a completed task must preserve its completed status (status = 1)
+        // and keep its task_completions records intact.
+        val task = Task(
+            title = "Task to be completed then edited",
+            dueDate = testDate,
+            createdAt = testInstant,
+            updatedAt = testInstant
+        )
+        val taskId = repository.createTask(task).getOrNull()!!
+
+        // Complete the task
+        val completeInstant = Instant.parse("2026-10-25T15:00:00Z")
+        clock.setInstant(completeInstant)
+        val completeResult = repository.completeTask(taskId)
+        assertTrue(completeResult.isSuccess)
+
+        // Verify task is DONE and completion row exists
+        val completedTask = repository.getTaskById(taskId)
+        assertEquals(TaskStatus.DONE, completedTask?.status)
+        val completionsBefore = database.taskCompletionDao().getCompletionsForTask(taskId)
+        assertEquals(1, completionsBefore.size)
+        assertEquals(completeInstant.toEpochMilli(), completionsBefore.first().completedAt)
+
+        // Now edit the completed task (update title, description, priority)
+        val editInstant = Instant.parse("2026-10-25T17:00:00Z")
+        clock.setInstant(editInstant)
+        val updatedTask = completedTask!!.copy(
+            title = "Task edited after completion",
+            description = "Post-completion feedback attached",
+            priority = TaskPriority.HIGH
+        )
+        val updateResult = repository.updateTask(updatedTask)
+        assertTrue(updateResult.isSuccess)
+
+        // Verify task attributes were updated
+        val retrievedAfterEdit = repository.getTaskById(taskId)
+        assertNotNull(retrievedAfterEdit)
+        assertEquals("Task edited after completion", retrievedAfterEdit?.title)
+        assertEquals("Post-completion feedback attached", retrievedAfterEdit?.description)
+        assertEquals(TaskPriority.HIGH, retrievedAfterEdit?.priority)
+
+        // Verify critical invariant: status is still DONE and completions are untouched
+        assertEquals("Status must remain DONE (1)", TaskStatus.DONE, retrievedAfterEdit?.status)
+        val completionsAfter = database.taskCompletionDao().getCompletionsForTask(taskId)
+        assertEquals("Completion record count must remain 1", 1, completionsAfter.size)
+        assertEquals(completeInstant.toEpochMilli(), completionsAfter.first().completedAt)
+        assertEquals(testDate.toString(), completionsAfter.first().completedOn)
+    }
 }

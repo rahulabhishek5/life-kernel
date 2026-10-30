@@ -45,7 +45,7 @@ class TagRepositoryIntegrationTest {
         val firstResult = repository.createTag("Focus")
         assertTrue(firstResult.isSuccess)
         val tag1 = firstResult.getOrNull()!!
-        assertEquals("Focus", tag1.name)
+        assertEquals("focus", tag1.name)
 
         val secondResult = repository.createTag("focus")
         assertTrue(secondResult.isSuccess)
@@ -77,5 +77,83 @@ class TagRepositoryIntegrationTest {
 
         assertNotNull(repository.getTagById(tag1.id))
         assertNull(repository.getTagById(tag2.id))
+    }
+
+    @Test
+    fun syncTaskTags_addsTagsAndEnforcesLowercaseUniqueness() = runBlocking {
+        val taskId = database.taskDao().insertTask(
+            TaskEntity(
+                title = "Tagged task",
+                createdAt = testInstant.toEpochMilli(),
+                updatedAt = testInstant.toEpochMilli()
+            )
+        )
+
+        val syncResult = repository.syncTaskTags(taskId, listOf("Work", "work", "  URGENT  "))
+        assertTrue(syncResult.isSuccess)
+        val tags = syncResult.getOrNull()!!
+
+        // "Work" and "work" deduplicated to single "work" tag
+        assertEquals(2, tags.size)
+        assertEquals("urgent", tags[0].name)
+        assertEquals("work", tags[1].name)
+
+        val tagsForTask = repository.getTagsForTask(taskId)
+        assertEquals(2, tagsForTask.size)
+
+        // Verify SQLite tags table has exactly 2 rows
+        val allTags = repository.observeAllTags().first()
+        assertEquals(2, allTags.size)
+    }
+
+    @Test
+    fun syncTaskTags_removingTagPrunesOrphanTagAutomatically() = runBlocking {
+        val taskId = database.taskDao().insertTask(
+            TaskEntity(
+                title = "Task for orphan test",
+                createdAt = testInstant.toEpochMilli(),
+                updatedAt = testInstant.toEpochMilli()
+            )
+        )
+
+        // Attach two tags
+        repository.syncTaskTags(taskId, listOf("keep-tag", "remove-tag"))
+        assertEquals(2, repository.observeAllTags().first().size)
+
+        // Remove "remove-tag"
+        val updateResult = repository.syncTaskTags(taskId, listOf("keep-tag"))
+        assertTrue(updateResult.isSuccess)
+
+        val remainingTags = repository.getTagsForTask(taskId)
+        assertEquals(1, remainingTags.size)
+        assertEquals("keep-tag", remainingTags[0].name)
+
+        // "remove-tag" must be pruned from SQLite tags table automatically
+        assertNull(repository.getTagByName("remove-tag"))
+        assertNotNull(repository.getTagByName("keep-tag"))
+        assertEquals(1, repository.observeAllTags().first().size)
+    }
+
+    @Test
+    fun deleteTask_prunesOrphanTagsViaTaskRepository() = runBlocking {
+        val taskRepo = TaskRepositoryImpl(database, clock)
+        val taskId = database.taskDao().insertTask(
+            TaskEntity(
+                title = "Task to be deleted",
+                createdAt = testInstant.toEpochMilli(),
+                updatedAt = testInstant.toEpochMilli()
+            )
+        )
+
+        repository.syncTaskTags(taskId, listOf("transient-tag"))
+        assertNotNull(repository.getTagByName("transient-tag"))
+
+        // Delete the task via TaskRepository
+        val deleteResult = taskRepo.deleteTask(taskId)
+        assertTrue(deleteResult.isSuccess)
+
+        // transient-tag had 0 other associations, so it must be pruned from tags
+        assertNull(repository.getTagByName("transient-tag"))
+        assertEquals(0, repository.observeAllTags().first().size)
     }
 }

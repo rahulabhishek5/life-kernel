@@ -2,37 +2,70 @@ package com.lifekernel.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 
 /**
- * State holder for top-level navigation per ARCHITECTURE.md §12a.
- * Maintains state restoration and single-top semantics when reselecting a top-level route.
+ * State holder for top-level and detail navigation per ARCHITECTURE.md §12a.
+ * Maintains back stack for detail routes and single-top semantics for top-level routes.
  */
 @Stable
 class AppNavigationState(
     initialScreen: Screen = Screen.Home
 ) {
-    var currentScreen by mutableStateOf(initialScreen)
-        private set
+    private val backStack = mutableStateListOf<Screen>(initialScreen)
+
+    val currentScreen: Screen
+        get() = backStack.lastOrNull() ?: Screen.Home
 
     fun navigateTo(screen: Screen) {
         if (currentScreen != screen) {
-            currentScreen = screen
+            if (screen is Screen.Home) {
+                backStack.clear()
+                backStack.add(Screen.Home)
+            } else if (screen is Screen.Settings) {
+                if (backStack.contains(Screen.Settings)) {
+                    while (backStack.isNotEmpty() && backStack.last() != Screen.Settings) {
+                        backStack.removeAt(backStack.lastIndex)
+                    }
+                } else {
+                    backStack.add(screen)
+                }
+            } else {
+                backStack.add(screen)
+            }
         }
     }
 
+    fun navigateBack(): Boolean {
+        if (backStack.size > 1) {
+            backStack.removeAt(backStack.lastIndex)
+            return true
+        }
+        return false
+    }
+
     fun navigateToHome() {
-        navigateTo(Screen.Home)
+        backStack.clear()
+        backStack.add(Screen.Home)
     }
 
     companion object {
         val Saver: Saver<AppNavigationState, String> = Saver(
-            save = { it.currentScreen.route },
-            restore = { AppNavigationState(Screen.fromRoute(it)) }
+            save = { it.backStack.joinToString(";") { screen -> screen.route } },
+            restore = { saved ->
+                val routes = saved.split(";").filter { it.isNotEmpty() }
+                val initial = Screen.fromRoute(routes.firstOrNull())
+                val state = AppNavigationState(initial)
+                state.backStack.clear()
+                if (routes.isEmpty()) {
+                    state.backStack.add(Screen.Home)
+                } else {
+                    routes.forEach { state.backStack.add(Screen.fromRoute(it)) }
+                }
+                state
+            }
         )
     }
 }

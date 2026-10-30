@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -49,7 +50,9 @@ fun PlannerTaskRow(
     task: Task,
     onToggle: (Task) -> Unit,
     modifier: Modifier = Modifier,
-    isOverdue: Boolean = false
+    onTaskClick: ((Task) -> Unit)? = null,
+    isOverdue: Boolean = false,
+    explicitDateBadge: String? = null
 ) {
     val reducedMotion = PosTheme.reducedMotion
     val duration = if (reducedMotion) 0 else PosTheme.motion.motionEmphasized
@@ -78,11 +81,21 @@ fun PlannerTaskRow(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = { onToggle(task) }
+                onClick = {
+                    if (onTaskClick != null) {
+                        onTaskClick(task)
+                    } else {
+                        onToggle(task)
+                    }
+                }
             )
             .semantics {
-                role = Role.Checkbox
-                stateDescription = stateDesc
+                if (onTaskClick != null) {
+                    role = Role.Button
+                } else {
+                    role = Role.Checkbox
+                    stateDescription = stateDesc
+                }
             }
             .testTag("task_row_${task.id}")
             .padding(horizontal = PosTheme.spacing.space3, vertical = PosTheme.spacing.space2)
@@ -110,17 +123,66 @@ fun PlannerTaskRow(
                     textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
                 )
 
-                if (task.tags.isNotEmpty()) {
+                if (task.tags.isNotEmpty() || task.subtasks.isNotEmpty()) {
                     FlowRow(
-                        modifier = Modifier.padding(top = PosTheme.spacing.space1),
-                        horizontalArrangement = Arrangement.spacedBy(PosTheme.spacing.space1)
+                        modifier = Modifier
+                            .padding(top = PosTheme.spacing.space1)
+                            .testTag("task_tags_row_${task.id}"),
+                        horizontalArrangement = Arrangement.spacedBy(PosTheme.spacing.space1),
+                        verticalArrangement = Arrangement.spacedBy(PosTheme.spacing.space1)
                     ) {
+                        if (task.subtasks.isNotEmpty()) {
+                            val completedCount = task.subtasks.count { it.isCompleted }
+                            val totalCount = task.subtasks.size
+                            Box(
+                                modifier = Modifier
+                                    .clip(PosTheme.shapes.radiusSmall)
+                                    .background(PosTheme.colors.surfaceVariant)
+                                    .border(
+                                        width = PosTheme.borders.borderHairline,
+                                        color = PosTheme.colors.outlineSubtle,
+                                        shape = PosTheme.shapes.radiusSmall
+                                    )
+                                    .padding(
+                                        horizontal = PosTheme.spacing.space2,
+                                        vertical = PosTheme.spacing.space1
+                                    )
+                                    .testTag("task_subtask_badge_${task.id}")
+                            ) {
+                                Text(
+                                    text = "$completedCount/$totalCount",
+                                    style = PosTheme.typography.label.copy(fontFamily = PosFonts.mono),
+                                    color = if (completedCount == totalCount && totalCount > 0) {
+                                        PosTheme.colors.textMuted
+                                    } else {
+                                        PosTheme.colors.textPrimary
+                                    }
+                                )
+                            }
+                        }
+
                         task.tags.forEach { tag ->
-                            Text(
-                                text = "#${tag.name}",
-                                style = PosTheme.typography.label.copy(fontFamily = PosFonts.mono),
-                                color = PosTheme.colors.textMuted
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(PosTheme.shapes.radiusSmall)
+                                    .background(PosTheme.colors.surfaceVariant)
+                                    .border(
+                                        width = PosTheme.borders.borderHairline,
+                                        color = PosTheme.colors.outlineSubtle,
+                                        shape = PosTheme.shapes.radiusSmall
+                                    )
+                                    .padding(
+                                        horizontal = PosTheme.spacing.space2,
+                                        vertical = PosTheme.spacing.space1
+                                    )
+                                    .testTag("task_tag_${task.id}_${tag.name}")
+                            ) {
+                                Text(
+                                    text = "#${tag.name}",
+                                    style = PosTheme.typography.label.copy(fontFamily = PosFonts.mono),
+                                    color = PosTheme.colors.textMuted
+                                )
+                            }
                         }
                     }
                 }
@@ -151,17 +213,21 @@ fun PlannerTaskRow(
                 )
             }
 
-            // Due date (highlighted in stateWarning if overdue)
-            if (task.dueDate != null) {
+            // Due date / Explicit date badge (highlighted in stateWarning if overdue)
+            val badgeText = explicitDateBadge ?: if (task.dueDate != null) {
+                task.dueDate!!.format(DateTimeFormatter.ofPattern("d MMM", Locale.US)).uppercase(Locale.US)
+            } else null
+
+            if (badgeText != null) {
                 Spacer(modifier = Modifier.width(PosTheme.spacing.space2))
-                val dateStr = task.dueDate!!.format(DateTimeFormatter.ofPattern("d MMM", Locale.US)).uppercase(Locale.US)
-                val dateColor = if (isOverdue && !task.isCompleted) {
+                val isWarning = (isOverdue || explicitDateBadge == "OVERDUE") && !task.isCompleted
+                val dateColor = if (isWarning) {
                     PosTheme.colors.stateWarning
                 } else {
                     PosTheme.colors.textMuted
                 }
                 Text(
-                    text = dateStr,
+                    text = badgeText,
                     style = PosTheme.typography.label.copy(fontFamily = PosFonts.mono),
                     color = dateColor,
                     modifier = Modifier.testTag("task_date_${task.id}")

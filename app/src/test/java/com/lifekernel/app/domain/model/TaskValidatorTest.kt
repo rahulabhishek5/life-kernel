@@ -167,4 +167,20 @@ class TaskValidatorTest {
         )
         assertTrue(TaskValidator.validateTask(validRecurring).isSuccess)
     }
+
+    @Test
+    fun validateTask_startDateAfterDueDate_fails() {
+        val task = Task(
+            title = "Inverted dates",
+            startDate = LocalDate.of(2026, 10, 28),
+            dueDate = LocalDate.of(2026, 10, 25),
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH
+        )
+        val result = TaskValidator.validateTask(task)
+        assertTrue(result.isFailure)
+        val error = result.errorOrNull() as AppError.Validation
+        assertEquals("startDate", error.field)
+        assertEquals("Start date cannot be after due date", error.message)
+    }
 }

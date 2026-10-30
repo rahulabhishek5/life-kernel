@@ -40,4 +40,7 @@ interface TaskCompletionDao {
 
     @Query("SELECT COUNT(*) FROM task_completions WHERE completed_on = :localDate")
     suspend fun getCompletedCountForDate(localDate: String): Int
+
+    @Query("SELECT * FROM task_completions ORDER BY id ASC")
+    suspend fun getAllCompletions(): List<TaskCompletionEntity>
 }

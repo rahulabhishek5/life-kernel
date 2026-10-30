@@ -11,6 +11,10 @@ import com.lifekernel.app.domain.usecase.CompleteTaskUseCase
 import com.lifekernel.app.domain.usecase.CreateTaskUseCase
 import com.lifekernel.app.domain.usecase.ObservePlannerTasksUseCase
 import com.lifekernel.app.domain.usecase.ReopenTaskUseCase
+import com.lifekernel.app.domain.model.Tag
+import com.lifekernel.app.domain.repository.TagRepository
+import com.lifekernel.app.domain.usecase.ObserveAllTagsUseCase
+import com.lifekernel.app.domain.usecase.SearchAndFilterTasksUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,10 +40,13 @@ class PlannerViewModelTest {
 
     private lateinit var clock: FixedClock
     private lateinit var fakeRepository: PlannerFakeTaskRepository
+    private lateinit var fakeTagRepository: FakePlannerTagRepository
     private lateinit var observePlannerTasksUseCase: ObservePlannerTasksUseCase
     private lateinit var completeTaskUseCase: CompleteTaskUseCase
     private lateinit var reopenTaskUseCase: ReopenTaskUseCase
     private lateinit var createTaskUseCase: CreateTaskUseCase
+    private lateinit var searchAndFilterTasksUseCase: SearchAndFilterTasksUseCase
+    private lateinit var observeAllTagsUseCase: ObserveAllTagsUseCase
     private lateinit var viewModel: PlannerViewModel
     private lateinit var testScope: CoroutineScope
     private lateinit var collectorJob: Job
@@ -51,10 +58,13 @@ class PlannerViewModelTest {
     fun setUp() {
         clock = FixedClock(testInstant, ZoneId.of("UTC"))
         fakeRepository = PlannerFakeTaskRepository()
+        fakeTagRepository = FakePlannerTagRepository()
         observePlannerTasksUseCase = ObservePlannerTasksUseCase(fakeRepository, clock)
         completeTaskUseCase = CompleteTaskUseCase(fakeRepository)
         reopenTaskUseCase = ReopenTaskUseCase(fakeRepository)
         createTaskUseCase = CreateTaskUseCase(fakeRepository, clock)
+        searchAndFilterTasksUseCase = SearchAndFilterTasksUseCase(fakeRepository)
+        observeAllTagsUseCase = ObserveAllTagsUseCase(fakeTagRepository)
 
         testScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         viewModel = PlannerViewModel(
@@ -62,6 +72,8 @@ class PlannerViewModelTest {
             completeTaskUseCase = completeTaskUseCase,
             reopenTaskUseCase = reopenTaskUseCase,
             createTaskUseCase = createTaskUseCase,
+            searchAndFilterTasksUseCase = searchAndFilterTasksUseCase,
+            observeAllTagsUseCase = observeAllTagsUseCase,
             clock = clock,
             coroutineScope = testScope
         )
@@ -386,6 +398,24 @@ class PlannerFakeTaskRepository : TaskRepository {
         return versionFlow.map { completedCounts[date] ?: 0 }
     }
 
+    override fun observeAllTasks(): Flow<List<Task>> {
+        return versionFlow.map {
+            tasks.values.filter { !it.isSubtask }.sortedWith(
+                compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                    .thenByDescending { it.priority.code }
+                    .thenBy { it.id }
+            )
+        }
+    }
+
+    override suspend fun getAllTasks(): List<Task> {
+        return tasks.values.filter { !it.isSubtask }.sortedWith(
+            compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                .thenByDescending { it.priority.code }
+                .thenBy { it.id }
+        )
+    }
+
     override fun observeTaskById(id: Long): Flow<Task?> {
         return versionFlow.map { tasks[id] }
     }
@@ -437,3 +467,29 @@ class PlannerFakeTaskRepository : TaskRepository {
         return AppResult.success(Unit)
     }
 }
+
+class FakePlannerTagRepository : TagRepository {
+    private val tagsFlow = MutableStateFlow<List<Tag>>(emptyList())
+
+    fun setTags(tags: List<Tag>) {
+        tagsFlow.value = tags
+    }
+
+    override fun observeAllTags(): Flow<List<Tag>> = tagsFlow
+    override suspend fun getTagById(id: Long): Tag? = tagsFlow.value.find { it.id == id }
+    override suspend fun getTagByName(name: String): Tag? = tagsFlow.value.find { it.name.equals(name, ignoreCase = true) }
+    override suspend fun createTag(name: String): AppResult<Tag> {
+        val tag = Tag(id = tagsFlow.value.size + 1L, name = name, createdAt = Instant.EPOCH)
+        tagsFlow.value = tagsFlow.value + tag
+        return AppResult.success(tag)
+    }
+    override suspend fun deleteTag(id: Long): AppResult<Unit> {
+        tagsFlow.value = tagsFlow.value.filter { it.id != id }
+        return AppResult.success(Unit)
+    }
+    override suspend fun deleteOrphanTags(): AppResult<Int> = AppResult.success(0)
+    override fun observeTagsForTask(taskId: Long): Flow<List<Tag>> = MutableStateFlow(emptyList())
+    override suspend fun getTagsForTask(taskId: Long): List<Tag> = emptyList()
+    override suspend fun syncTaskTags(taskId: Long, tagNames: List<String>): AppResult<List<Tag>> = AppResult.success(emptyList())
+}
+

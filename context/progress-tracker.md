@@ -2,15 +2,15 @@
 
 Update this file after every meaningful implementation change, in the same change as the work.
 
-*Last updated: 2026-10-28*
+*Last updated: 2026-10-30*
 
 ## Current Phase
 
-- **Milestone M4: Task Management (Task T-012 completed).** Settings v0: Theme selector with live dynamic transitions across 7 accent palettes, default planner view preference, backed by AndroidX DataStore (Preferences), and comprehensive test suites implemented.
+- **Milestone M5: Backup and restore (In progress: T-017 complete, transitioning to T-018: Restore engine).** Milestone M4 is fully completed and signed off. Task T-017 (Backup archive writer, ZIP streaming, manifest, JSONL per table, SHA-256, and automated backup registry enforcement test) is fully implemented, verified, and tested.
 
 ## Current Goal
 
-- Author review and formal sign-off for Task T-012; advance to Task T-013 (Task detail, edit, delete with confirmation).
+- Author review and formal sign-off for Task T-017: Backup archive writer; proceed exclusively to Milestone M5 — Task T-018: Restore (validate fully, replace atomically).
 
 ## Phase Plan (from PRD v0.1)
 
@@ -321,14 +321,219 @@ Update this file after every meaningful implementation change, in the same chang
     - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL, 0 errors.
     - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleRelease` — BUILD SUCCESSFUL.
 
+- **T-013:** Task detail, edit, delete with confirmation:
+  - Neo-brutalist modal confirmation dialog `PosDialog` & `PosConfirmationDialog` (`com.lifekernel.app.core.designsystem.components.PosDialog.kt`):
+    - Conforms strictly to `design-system.md` §6: surface `#101010`, 2dp `outlineStrong` border, `radiusLarge` (8dp), and 60% alpha AMOLED black scrim.
+    - Dismiss/Cancel button on left (Secondary outline style) and Affirmative/Confirm button on right (Destructive variant using `stateError` label/border or Primary accent).
+    - Strict >= 48dp touch targets on actions.
+    - Supports custom body content, explicit confirmation text, and dismiss on scrim tap or system back.
+  - Domain Layer Use Cases (`com.lifekernel.app.domain.usecase`):
+    - `GetTaskByIdUseCase`: Observes a specific task by ID (`Flow<Task?>`) and fetches direct result (`suspend fun invoke(id: Long): AppResult<Task>`).
+    - `UpdateTaskUseCase`: Validates updated task attributes (title 1-200 chars, description <= 10,000 chars, start date <= due date), refreshes `updatedAt` via injected `Clock`, and persists updates.
+    - `DeleteTaskUseCase`: Atomically deletes task by ID with foreign key cascades and orphan tag cleanup.
+  - Domain Validation & Repository Invariants:
+    - Added date ordering validation in `TaskValidator.kt` (`startDate > dueDate` returns `AppError.Validation`).
+    - Preserved completed task invariant (AC-TASK) in `TaskRepositoryImpl.updateTask`: editing a completed task preserves its completed status (`status = existing.status`) and keeps its `task_completions` records intact.
+  - Presentation Layer (`com.lifekernel.app.feature.tasks`):
+    - `TaskDetailUiState`: Immutable state containing task fields (title, description, priority, dates), status readout, live validation errors (`isTitleBlank`, `isDateOrderInvalid`), and delete confirmation dialog visibility.
+    - `TaskDetailViewModel`: Manages task loading, live field validation, date preset/pickers, save persistence, and delete confirmation with coroutine scope injection for testability.
+    - `TaskDetailScreen`: Neo-brutalist screen featuring `PosTopBar` with back arrow (`isBackNavigation = true`), status badge readout, title `PosTextField` with inline validation, description multiline `PosTextField`, priority chips (`None`, `Low ·`, `Medium !`, `High !!`), date presets/pickers, save button, destructive "DELETE TASK" button, and `PosConfirmationDialog`.
+    - AC-TASK Confirmation Dialog rule: Explicitly names the task being deleted (`"Are you sure you want to delete '$taskTitle'?"`) and alerts user if subtasks will also be deleted.
+  - Navigation & Interaction Wiring:
+    - Added `Screen.TaskDetail(val taskId: Long)` route in `Screen.kt`.
+    - Updated `AppNavigationState` to manage a back-stack of screens with `navigateBack()` and state restoration in `Saver`.
+    - Updated `PlannerTaskRow` to provide `onTaskClick` outside the checkbox for navigating to detail, while checkbox toggle remains isolated.
+    - Back handling: System back dismisses delete dialog first if open, or discards uncommitted edits and pops to planner.
+    - Manual DI: Injected `GetTaskByIdUseCase`, `UpdateTaskUseCase`, `DeleteTaskUseCase`, and `createTaskDetailViewModel(taskId)` into `AppContainer` and `DefaultAppContainer`.
+  - Automated Test Suites:
+    - Unit Tests:
+      - `UpdateTaskUseCaseTest`: 4 tests (valid update, blank title rejection, start-date-after-due-date rejection, editing completed task preserving status/completions).
+      - `DeleteTaskUseCaseTest`: 2 tests (successful deletion, non-existent task error).
+      - `GetTaskByIdUseCaseTest`: 3 tests (observe flow, fetch success, fetch not found).
+      - `TaskDetailViewModelTest`: 6 tests (initial load, live title validation, date constraint validation, save action, delete flow, completed status preservation).
+      - `TaskValidatorTest`: Added date order validation test (10 total in file).
+      - `AppNavigationStateTest`: Added detail route parsing and back-stack pop tests (5 total in file).
+      - Total: **106 passing JVM unit tests** (100% success rate, 0 failures, 0 skipped).
+      - `LayerBoundaryTest`: Passes with 0 forbidden imports in `domain/`.
+    - Instrumented Tests:
+      - `TaskDetailFlowTest`: Tests detail view rendering, live inline editing, delete dialog explicitly naming the task, subtasks deletion warning, 48dp minimum touch targets, and deletion execution.
+      - `TaskRepositoryIntegrationTest`: Verifies editing completed task in SQLite preserves status and completions.
+      - `NavigationTest`: Verifies navigation from planner row click into detail and back navigation pop.
+  - Verification Outputs:
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` — BUILD SUCCESSFUL (106 tests passed, 0 failures, 0 errors, 0 skipped).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug assembleRelease` — BUILD SUCCESSFUL (Release APK size 1.4 MB, <= 1.5 MB budget).
+
+- **T-014:** Tags on tasks (tag picker, tag management, orphan cleanup):
+  - Tag Domain Model & Validator (`com.lifekernel.app.domain.model`):
+    - Created `TagValidator` enforcing PRD §8.4 rules: 1–30 characters, stripped leading/trailing whitespace, strictly lowercase normalized, allowed characters `^[a-z0-9_-]+$`, rejects empty strings, spaces, and invalid symbols. Leading '#' prefix is automatically stripped.
+    - Updated `TaskValidator.kt` to delegate `validateTagName` to `TagValidator.validateTagName` and set `MAX_TAG_LENGTH = 30`.
+  - Domain Layer Use Cases (`com.lifekernel.app.domain.usecase`):
+    - `ObserveAllTagsUseCase`: Returns `Flow<List<Tag>>` sorted alphabetically by name.
+    - `GetTagsForTaskUseCase`: Observes or fetches tags linked to a specific `taskId`.
+    - `SyncTaskTagsUseCase`: Atomically associates a list of tag names with a task. Automatically creates non-existent tags, links them via `task_tags`, unlinks removed tags, and triggers orphan cleanup in a single transaction.
+  - Repository & Data Layer (`com.lifekernel.app.domain.repository` & `com.lifekernel.app.data.repository`):
+    - Extended `TagRepository` with `observeTagsForTask(taskId)`, `getTagsForTask(taskId)`, and `syncTaskTags(taskId, tagNames)`.
+    - Implemented `TagRepositoryImpl.syncTaskTags` with `database.withTransaction`: validates names, inserts new tags, updates `task_tags` junction, and prunes orphan tags (`database.tagDao().deleteOrphanTags()`).
+    - Verified `TaskRepositoryImpl.deleteTask` cascades to `task_tags` and cleans up orphaned tags automatically.
+  - UI Components (`core/designsystem/components/` & `feature/tasks/components/`):
+    - `PosRemovableChip` (`PosChip.kt`): Renders tag name prefixed with `#` in mono font (`PosFonts.mono`), featuring a dedicated trailing '✕' remove button strictly enforcing a minimum 48dp touch target (`minTouchTarget`).
+    - `PosTagPicker` (`feature/tasks/components/PosTagPicker.kt`): Inline tag picker with FlowRow of assigned tags (`PosRemovableChip`), `PosTextField` input with live validation, suggestion chips for existing matching tags, and a "+ Create #name" action for novel tags. Automatically ignores duplicate tags.
+    - `TaskDetailScreen`: Integrated `PosTagPicker` into the task detail and edit view. Committing changes synchronizes all tag associations atomically via `SyncTaskTagsUseCase`.
+    - `PlannerTaskRow`: Renders assigned tag chips horizontally beneath the task title with `surfaceVariant` background and hairline border, wrapping cleanly via `FlowRow`.
+  - Manual DI Wiring (`com.lifekernel.app.di`):
+    - Registered `observeAllTagsUseCase`, `getTagsForTaskUseCase`, and `syncTaskTagsUseCase` in `AppContainer` and `DefaultAppContainer`.
+    - Injected use cases into `createTaskDetailViewModel(taskId)`.
+  - Automated Test Suites:
+    - **Unit Tests:**
+      - `TagValidatorTest` (9 tests): 1–30 character limits, empty/whitespace rejection, length limit checks, lowercase normalization, trimming, '#' prefix stripping, space rejection, allowed symbols (`_` and `-`), and invalid symbol rejection.
+      - `TagUseCasesTest` (5 tests): Alphabetical sorting, tag creation and linking, unlinking and orphan tag pruning, shared tag preservation across tasks, and invalid tag name rejection.
+      - `TaskDetailViewModelTest` (8 tests): Includes tag addition with normalization, duplicate avoidance, tag removal, and input validation error handling.
+      - `LayerBoundaryTest` (3 tests): Continues to enforce zero forbidden imports in `domain/`.
+      - **Total: 118 passing JVM unit tests** (100% success rate across all suites).
+    - **Instrumented Tests:**
+      - `TagRepositoryIntegrationTest`: Case-insensitive tag reuse, orphan cleanup on tag removal and task deletion, lowercase uniqueness constraint in SQLite.
+      - `TaskDetailFlowTest`: Tag creation via input and create chip, tag removal via 48dp touch-target remove action.
+      - `PlannerScreenTest`: Verified tag chips render on `PlannerTaskRow`.
+      - `compileDebugAndroidTestKotlin`: 0 compilation errors across all instrumented test suites.
+  - Verification Outputs:
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` — BUILD SUCCESSFUL (118 tests passed, 0 failures, 0 errors, 0 skipped).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug assembleRelease` — BUILD SUCCESSFUL (Release APK size 1.4 MB, <= 1.5 MB budget).
+
+- **T-015:** Subtasks (checklist on tasks, add/toggle/delete, subtask progress, and cascade verification):
+  - Subtask Domain Model & Validator (`com.lifekernel.app.domain.model`):
+    - `Subtask`: Pure Kotlin model (`id`, `taskId`, `title`, `isCompleted`, `position`, `createdAt`, `updatedAt`, `createdInstant`, `updatedInstant`) adhering strictly to Invariant #1 (zero `android.*` or `androidx.*` dependencies).
+    - `SubtaskValidator`: Enforces constraints per PRD §8.3, FR-TASK-002, and `DATABASE_SCHEMA.md` §2.4: title 1–200 characters, trimmed of leading/trailing whitespace, non-empty, position >= 0, and valid positive taskId.
+  - Domain Layer Use Cases (`com.lifekernel.app.domain.usecase`):
+    - `ObserveSubtasksForTaskUseCase`: Emits `Flow<List<Subtask>>` ordered by `position ASC`.
+    - `AddSubtaskUseCase`: Validates title, assigns next sequential position (`currentMax + 1`), sets timestamps via `Clock`.
+    - `ToggleSubtaskUseCase`: Toggles completion state (`isCompleted`), updates `updatedAt` via `Clock`.
+    - `DeleteSubtaskUseCase`: Deletes subtask and compacts remaining subtask positions to maintain continuity without gaps.
+  - Room DAO & Repository Layer (`com.lifekernel.app.data.local.dao` & `com.lifekernel.app.data.repository`):
+    - `SubtaskDao`: Operates on `TaskEntity` within the existing `tasks` table (`parent_id = taskId`, `sort_order = position`, `status = isCompleted`), preserving Room v1 schema with zero migrations.
+    - `SubtaskMapper`: Provides bidirectional conversions between `TaskEntity` and `Subtask`.
+    - `SubtaskRepository` & `SubtaskRepositoryImpl`: Dispatches all DB operations on `Dispatchers.IO`, wrapping mutations in `database.withTransaction`.
+    - **Critical Invariant Verification (FR-TASK-002 / AC-TASK):** Independent completion state verified — completing all subtasks does not mark parent task completed, and completing parent task does not toggle subtask states.
+    - **Cascade Deletion Verification:** SQLite `parent_id REFERENCES tasks(id) ON DELETE CASCADE` automatically purges all subtasks when a parent task is deleted.
+  - UI Presentation Components (`feature/tasks/components/` & `feature/planner/components/`):
+    - `TaskDetailSubtaskRow.kt`: Compact neo-brutalist row with leading `PosCheckbox` strictly enforcing >= 48dp touch target, title with 220ms strike-through and dimming animation on completion (0ms instantaneous snap under `LocalReducedMotion`), and trailing delete button with strict >= 48dp touch target.
+    - `TaskDetailScreen.kt`:
+      - Fractional completion header (e.g., `"SUBTASKS: 3 / 5"`) in uppercase mono caps (`PosFonts.mono`).
+      - Mini `PosProgressBar` reflecting completion ratio with smooth 160ms fill animation.
+      - Inline quick-input field (`PosTextField`) supporting sequential keyboard `ImeAction.Done` additions and dedicated add button, with live validation rejecting blank titles without resetting the form.
+    - `PlannerTaskRow.kt`:
+      - Compact subtask count badge (e.g., `"3/5"`) rendered in mono caps alongside existing tag chips and priority indicators without cluttering the primary task title.
+  - Manual DI Wiring (`com.lifekernel.app.di`):
+    - Registered `subtaskRepository`, `observeSubtasksForTaskUseCase`, `addSubtaskUseCase`, `toggleSubtaskUseCase`, and `deleteSubtaskUseCase` in `AppContainer` and `DefaultAppContainer`.
+    - Injected all subtask use cases into `createTaskDetailViewModel(taskId)`.
+  - Automated Test Suites:
+    - **Unit Tests:**
+      - `SubtaskValidatorTest` (7 tests): 1–200 character boundary, blank/empty title rejection, whitespace trimming, position >= 0, and full subtask validation.
+      - `SubtaskUseCasesTest` (5 tests): Sequential position assignment, whitespace trimming, validation rejections, decoupled toggle behavior, position continuity compaction on deletion, and ordered observation.
+      - `TaskDetailViewModelTest` (9 tests): Subtask quick-add, toggle, deletion, fractional progress ratio calculation, and independent parent completion state verification.
+      - `LayerBoundaryTest` (3 tests): 0 forbidden imports across all domain models and use cases.
+      - **Total: 137 passing JVM unit tests** (100% success rate across all suites).
+    - **Instrumented Tests:**
+      - `SubtaskRepositoryIntegrationTest`: SQLite persistence, `position ASC` ordering, completion state toggling, position continuity compaction, and SQLite foreign key cascade deletion when parent task is deleted.
+      - `TaskDetailFlowTest`: Subtask addition via quick-add input and keyboard `ImeAction.Done`, subtask checkbox toggling, progress header/bar updates, deletion, and strict 48dp touch targets on checkboxes and delete buttons.
+      - `PlannerScreenTest`: Verified subtask count badge (`"1/3"`) renders on `PlannerTaskRow`.
+      - `compileDebugAndroidTestKotlin`: 0 compilation errors across all instrumented test suites.
+  - Verification Outputs:
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` — BUILD SUCCESSFUL (137 tests passed, 0 failures, 0 errors, 0 skipped).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug assembleRelease` — BUILD SUCCESSFUL (Release APK size 1.4 MB, <= 1.5 MB budget).
+
+- **T-016:** Planner search and filter (global keyword search, tag filtering, priority filtering, and empty search results):
+  - Domain & Data Layer:
+    - `TaskFilterCriteria`: Immutable criteria domain model (`searchQuery`, `selectedPriority`, `selectedTagName`, `trimmedQuery`, `isActive`).
+    - `SearchAndFilterTasksUseCase`: Cross-date query flow mapping `observeAllTasks()`. When `criteria.isActive == true`, searches across all dates in the database (past, today, future, and unscheduled tasks); case-insensitive substring match across title and description; conjunctive (AND) logic across search query, priority, and tag filters; top-level tasks only.
+    - `TaskDao` & `TaskRepository`: Added `observeAllTopLevelTasks` / `observeAllTasks` on `Dispatchers.IO` ordered by due date, priority, and ID.
+  - ViewModel & Reactive State Pipeline:
+    - `PlannerViewModel`: Multi-stream reactive state pipeline. 250ms debounced flow for keystroke queries (`debouncedQueryFlow`), immediate selection for priority and tag chips. Exposes actions: `onToggleSearch()`, `onCloseSearch()`, `onUpdateSearchQuery()`, `onTogglePriorityFilter()`, `onToggleTagFilter()`, `onClearAllFilters()`.
+    - `PlannerUiState`: Added `isSearchActive`, `searchQuery`, `selectedPriorityFilter`, `selectedTagFilter`, `availableFilterTags`, `filteredTasks`, and helper properties `isFilterActive` and `isSearchEmpty`.
+  - Presentation & UI Components:
+    - `PosChip`: Enhanced with 160ms color transition animation, reduced-motion snap, default `surfaceVariant` inactive background, and strict 48dp minimum touch target.
+    - `PosTextField`: Added optional `leadingIcon` slot with design-system padding.
+    - `PlannerTopBar`: Top bar supporting standard title mode with 48dp search icon action, and search mode with autofocus inline `PosTextField`, leading search icon, trailing 48dp clear/close button (`search_clear_button`), and IME Search action.
+    - `PlannerFilterBar`: Horizontal scrollable row (`planner_filter_bar`) rendering priority filter chips (`High !!`, `Med !`, `Low ·`), dynamic `#tag` chips, and "CLEAR ALL" action (all enforcing >= 48dp touch targets).
+    - `PlannerScreen`: Replaces standard date sections with single-list global search results when filtering. Tasks render explicit due date badges ("TODAY", "OVERDUE", "DUE d MMM", "NO DUE DATE"). Zero search matches trigger `PosEmptyState` ("NO MATCHING TASKS", guidance, "CLEAR FILTERS" CTA).
+    - Back Navigation Priority: `BackHandler(enabled = uiState.isSearchActive || uiState.isFilterActive)` closes search and clears filters before navigating away or opening drawer.
+  - Test Suite Coverage:
+    - `SearchAndFilterTasksUseCaseTest`: Cross-date search (verifying +30 day future task returned), case-insensitive substring match, description search, combined AND logic, empty criteria unfiltered return, and subtask exclusion.
+    - `PlannerViewModelFilterTest`: Keystroke debounce and state updates, priority and tag chip toggling, clear all reset, and empty search results flag.
+    - `PlannerScreenTest`: Expanding search bar from top bar, typing query and verifying cross-date tasks appear with explicit date badges, priority chip filtering, "CLEAR FILTERS" reset, and 48dp minimum touch targets on all filter and search controls.
+  - Verification Outputs:
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` — BUILD SUCCESSFUL (140 tests passed, 0 failures, 0 errors, 0 skipped).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug assembleRelease` — BUILD SUCCESSFUL (Release APK size 1.4 MB, <= 15 MB budget).
+
+- **T-017:** Backup archive writer (ZIP, manifest, JSONL per table, SHA-256, backup registry test):
+  - Serialization Infrastructure & Version Catalog Integration:
+    - Added `kotlinx.serialization` (JSON `1.6.3`) and compiler plugin (`org.jetbrains.kotlin.plugin.serialization`) to `gradle/libs.versions.toml` and `app/build.gradle.kts`.
+    - Recorded decision in [context/adr/ADR-016-kotlinx-serialization.md](file:///home/rahul/AndroidStudioProjects/LifeKernel/context/adr/ADR-016-kotlinx-serialization.md).
+  - Manifest & Portable Settings Models (`com.lifekernel.app.infra.backup.model`):
+    - `BackupManifest`: Root metadata descriptor (`manifest.json` at ZIP root) containing `format_version = 1`, `app_version = "0.1.0"`, `room_schema_version = 1`, `created_at_utc_ms` (UTC epoch ms derived from injected `Clock`), `device_zone_id` (informational local zone ID), and `files` array.
+    - `BackupFileEntry`: Records `path` (e.g. `"data/tasks.jsonl"`), `rows` (integer count), and `sha256` (lowercase hex checksum).
+    - `BackupSettings`: Exports portable preferences (`settings.json` at ZIP root) containing `theme_palette_id`, `default_planner_view`, `week_start`, `time_format`. Strictly excludes device-local state (backup folder URI, dirty flag, snooze state).
+  - Table JSONL Serializers & DTOs (`com.lifekernel.app.infra.backup.serializer`):
+    - Implemented DTOs and bidirectional mappers for all 4 tables in Room schema v1:
+      - `tasks` (`data/tasks.jsonl`): `TaskBackupDto` with column keys (`id`, `title`, `description`, `status`, `priority`, `start_date`, `due_date`, `parent_id`, `sort_order`, `recur_type`, `recur_interval`, `recur_weekdays`, `recur_until`, `created_at`, `updated_at`). Explicit `null` encoding for null columns.
+      - `tags` (`data/tags.jsonl`): `TagBackupDto` (`id`, `name`, `created_at`).
+      - `task_tags` (`data/task_tags.jsonl`): `TaskTagBackupDto` (`task_id`, `tag_id`).
+      - `task_completions` (`data/task_completions.jsonl`): `TaskCompletionBackupDto` (`id`, `task_id`, `occurrence_date`, `completed_at`, `completed_on`).
+  - Table Backup Registry (`com.lifekernel.app.infra.backup.registry`):
+    - `TableBackupHandler`: Contract defining `tableName`, `entityClass`, `relativePath`, and `exportRows()`.
+    - `BackupRegistry`: Central registry mapping all Room entities to table handlers in dependency order (`tags`, `tasks`, `task_tags`, `task_completions`).
+  - Archive Writer Engine (`com.lifekernel.app.infra.backup.writer`):
+    - `BackupWriter` interface and `DefaultBackupWriter` implementation: Reads database records via DAOs strictly on `Dispatchers.IO`.
+    - Streams per-table JSONL files into scratch directory while calculating exact row counts and streaming SHA-256 digests via `DigestOutputStream` and `MessageDigest`.
+    - Streams complete ZIP archive using `java.util.zip.ZipOutputStream` with `manifest.json` and `settings.json` at root and `data/*.jsonl` in data subfolder.
+    - Atomic generation guarantee: Writes archive to `.tmp` file first and renames to target destination upon 100% completion; deletes scratch and temporary files on any failure.
+  - Domain & Data Repository Integration (`com.lifekernel.app.domain.repository` & `com.lifekernel.app.data.repository`):
+    - `BackupRepository`: Contract declaring `createBackup(targetFile: File): AppResult<File>` and `readManifest(backupFile: File): AppResult<BackupManifest>`.
+    - `BackupRepositoryImpl`: Delegates to `BackupWriter` and provides ZIP manifest parsing and error handling on `Dispatchers.IO`.
+    - `AppContainer` & `DefaultAppContainer`: Wired `backupWriter` and `backupRepository`.
+  - Automated Test Suites:
+    - Unit Tests (`app/src/test/...`):
+      - `BackupRegistryTest`: Enforces that all entities declared in `LifeKernelDatabase` and all tables exported in Room schema JSON are registered in `BackupRegistry`. Test automatically fails if any table is omitted.
+      - `BackupManifestTest`: Verifies manifest and settings serialization, JSON key matching to `DATABASE_SCHEMA.md` §11.2, omission of device-local preferences, and lowercase hex SHA-256 calculation.
+      - `JsonlSerializationTest`: Verifies exact database column key mapping, explicit null serialization, and round-trip fidelity across all 4 tables.
+      - `BackupRepositoryTest`: Verifies `createBackup` delegation, `readManifest` parsing, missing manifest error, corrupted ZIP error, and non-existent file error.
+      - `LayerBoundaryTest`: Continues to verify 0 forbidden imports in `domain/`.
+      - Total: **165 passing JVM unit tests** (100% success rate, 0 failures, 0 skipped).
+    - Instrumented Tests (`app/src/androidTest/...`):
+      - `BackupArchiveWriterIntegrationTest`: End-to-end integration test with SQLite in-memory database and DataStore. Generates real ZIP archive, verifies entries, verifies manifest values, verifies SHA-256 hashes against actual file contents, verifies row counts against database records, and tests manifest reading and error states.
+      - `compileDebugAndroidTestKotlin`: 0 compilation errors across all instrumented test suites.
+  - Verification Outputs:
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew testDebugUnitTest` — BUILD SUCCESSFUL (165 tests passed, 0 failures, 0 errors, 0 skipped).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew lintDebug` — BUILD SUCCESSFUL (0 errors).
+    - `JAVA_HOME=/opt/android-studio/jbr ./gradlew assembleDebug assembleRelease` — BUILD SUCCESSFUL (Release APK size 1.4 MB, <= 15 MB budget).
+
+---
+
+### Milestone M4: Task Management — Formal Completion Sign-off
+- **Milestone Scope Concluded:**
+  - `T-012`: Daily planner tasks view (overdue, today, done partitions, 220ms completion transition, quick-add capture sheet).
+  - `T-013`: Task detail screen, editing, completion state, priority/due-date selectors, delete with confirmation dialog.
+  - `T-014`: Tags on tasks, tag picker with inline creation, orphan tag transactional pruning, lowercase normalization.
+  - `T-015`: Subtasks checklist, independent completion status, progress header/counter, SQLite foreign-key cascade deletion.
+  - `T-016`: Global cross-date search, conjunctive multi-criteria filter bar, 250ms debounce pipeline, empty search results fallback, 48dp touch targets, BackHandler priority.
+- **Milestone Status:** Fully verified, zero lint issues, zero regressions, 140 passing unit tests. Signed off.
+
 ## In Progress
 
-- Post-T-012 Stability Audit & Visual/Interaction Defect Resolution completed. Follow-up hardware defect resolution (Lime palette, top bar bleed, button offset, quick-add presentation) completed. Awaiting author review.
+- Awaiting author review and formal sign-off for Task T-017 (Backup archive writer & registry test).
 
 ## Next Up
 
-1. Author review and formal sign-off for Post-T-012 Stability Audit & Defect Resolution.
-2. Advance to Milestone M4 — Task T-013 (Task detail, edit, delete with confirmation).
+1. Milestone M5 — Task T-018: Restore: validate fully, replace atomically per `context/IMPLEMENTATION_PLAN.md` (FR-BKP-006, FR-BKP-007).
+2. Milestone M5 — Task T-019: Folder picker, persisted permission, retention (last 5 backups), last-backup info, backup screen.
 
 ## Open Questions
 
@@ -405,7 +610,7 @@ Update this file after every meaningful implementation change, in the same chang
 | ADR-013 | Resources are URLs only | No file-path or permission problems | Accepted |
 | ADR-014 | Android automatic backup disabled | Data leaves the device only by user action | Accepted |
 | ADR-015 | Native Canvas charts, no charting library | Smaller size, full styling control | Proposed: confirm at P3 start |
-| ADR-016 | kotlinx.serialization for backup JSON | Typed, testable parsing | Proposed: approve before T-017 |
+| ADR-016 | kotlinx.serialization for backup JSON | Typed, testable parsing ([ADR-016](file:///home/rahul/AndroidStudioProjects/LifeKernel/context/adr/ADR-016-kotlinx-serialization.md)) | Accepted |
 | (pending) | AndroidX biometric library for app lock | Avoids custom PIN code | Needs approval before T-033 |
 
 ## Session Notes

@@ -43,7 +43,8 @@ fun PosTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onNavigationClick: (() -> Unit)? = null,
-    navigationIconContentDescription: String = "Open navigation drawer",
+    isBackNavigation: Boolean = false,
+    navigationIconContentDescription: String = if (isBackNavigation) "Navigate up" else "Open navigation drawer",
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Surface(
@@ -95,25 +96,48 @@ fun PosTopBar(
                             Canvas(
                                 modifier = Modifier.size(width = 18.dp, height = 14.dp)
                             ) {
-                                val barHeight = 2.dp.toPx()
-                                // Top bar
-                                drawRect(
-                                    color = iconColor,
-                                    topLeft = Offset(0f, 0f),
-                                    size = Size(size.width, barHeight)
-                                )
-                                // Middle bar
-                                drawRect(
-                                    color = iconColor,
-                                    topLeft = Offset(0f, (size.height - barHeight) / 2),
-                                    size = Size(size.width, barHeight)
-                                )
-                                // Bottom bar
-                                drawRect(
-                                    color = iconColor,
-                                    topLeft = Offset(0f, size.height - barHeight),
-                                    size = Size(size.width, barHeight)
-                                )
+                                if (isBackNavigation) {
+                                    val strokeWidth = 2.dp.toPx()
+                                    val midY = size.height / 2f
+                                    drawLine(
+                                        color = iconColor,
+                                        start = Offset(0f, midY),
+                                        end = Offset(size.width, midY),
+                                        strokeWidth = strokeWidth
+                                    )
+                                    drawLine(
+                                        color = iconColor,
+                                        start = Offset(0f, midY),
+                                        end = Offset(size.width * 0.45f, 0f),
+                                        strokeWidth = strokeWidth
+                                    )
+                                    drawLine(
+                                        color = iconColor,
+                                        start = Offset(0f, midY),
+                                        end = Offset(size.width * 0.45f, size.height),
+                                        strokeWidth = strokeWidth
+                                    )
+                                } else {
+                                    val barHeight = 2.dp.toPx()
+                                    // Top bar
+                                    drawRect(
+                                        color = iconColor,
+                                        topLeft = Offset(0f, 0f),
+                                        size = Size(size.width, barHeight)
+                                    )
+                                    // Middle bar
+                                    drawRect(
+                                        color = iconColor,
+                                        topLeft = Offset(0f, (size.height - barHeight) / 2),
+                                        size = Size(size.width, barHeight)
+                                    )
+                                    // Bottom bar
+                                    drawRect(
+                                        color = iconColor,
+                                        topLeft = Offset(0f, size.height - barHeight),
+                                        size = Size(size.width, barHeight)
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.width(PosTheme.spacing.space2))

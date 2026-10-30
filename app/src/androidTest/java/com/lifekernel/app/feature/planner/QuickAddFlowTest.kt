@@ -21,10 +21,14 @@ import com.lifekernel.app.domain.model.Task
 import com.lifekernel.app.domain.model.TaskPriority
 import com.lifekernel.app.domain.model.TaskStatus
 import com.lifekernel.app.domain.repository.TaskRepository
+import com.lifekernel.app.domain.model.Tag
+import com.lifekernel.app.domain.repository.TagRepository
 import com.lifekernel.app.domain.usecase.CompleteTaskUseCase
 import com.lifekernel.app.domain.usecase.CreateTaskUseCase
+import com.lifekernel.app.domain.usecase.ObserveAllTagsUseCase
 import com.lifekernel.app.domain.usecase.ObservePlannerTasksUseCase
 import com.lifekernel.app.domain.usecase.ReopenTaskUseCase
+import com.lifekernel.app.domain.usecase.SearchAndFilterTasksUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -58,15 +62,20 @@ class QuickAddFlowTest {
     private val testInstant = Instant.parse("2026-10-25T10:00:00Z")
     private val testDate = LocalDate.of(2026, 10, 25)
 
+    private lateinit var fakeTagRepository: QuickAddFakeTagRepository
+
     @Before
     fun setUp() {
         clock = FixedClock(testInstant, ZoneId.of("UTC"))
         fakeRepository = QuickAddFakeTaskRepository()
+        fakeTagRepository = QuickAddFakeTagRepository()
         viewModel = PlannerViewModel(
             observePlannerTasksUseCase = ObservePlannerTasksUseCase(fakeRepository, clock),
             completeTaskUseCase = CompleteTaskUseCase(fakeRepository),
             reopenTaskUseCase = ReopenTaskUseCase(fakeRepository),
             createTaskUseCase = CreateTaskUseCase(fakeRepository, clock),
+            searchAndFilterTasksUseCase = SearchAndFilterTasksUseCase(fakeRepository),
+            observeAllTagsUseCase = ObserveAllTagsUseCase(fakeTagRepository),
             clock = clock
         )
     }
@@ -258,6 +267,8 @@ class QuickAddFlowTest {
             completeTaskUseCase = CompleteTaskUseCase(fakeRepository),
             reopenTaskUseCase = ReopenTaskUseCase(fakeRepository),
             createTaskUseCase = CreateTaskUseCase(fakeRepository, clock),
+            searchAndFilterTasksUseCase = SearchAndFilterTasksUseCase(fakeRepository),
+            observeAllTagsUseCase = ObserveAllTagsUseCase(fakeTagRepository),
             clock = clock
         )
 
@@ -362,6 +373,24 @@ private class QuickAddFakeTaskRepository : TaskRepository {
         return tasksFlow.map { completedCounts[date] ?: 0 }
     }
 
+    override fun observeAllTasks(): Flow<List<Task>> {
+        return tasksFlow.map { map ->
+            map.values.filter { !it.isSubtask }.sortedWith(
+                compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                    .thenByDescending { it.priority.code }
+                    .thenBy { it.id }
+            )
+        }
+    }
+
+    override suspend fun getAllTasks(): List<Task> {
+        return tasks.values.filter { !it.isSubtask }.sortedWith(
+            compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                .thenByDescending { it.priority.code }
+                .thenBy { it.id }
+        )
+    }
+
     override fun observeTaskById(id: Long): Flow<Task?> {
         return tasksFlow.map { it[id] }
     }
@@ -413,3 +442,24 @@ private class QuickAddFakeTaskRepository : TaskRepository {
         return AppResult.success(Unit)
     }
 }
+
+class QuickAddFakeTagRepository : TagRepository {
+    private val tagsFlow = MutableStateFlow<List<Tag>>(emptyList())
+    override fun observeAllTags(): Flow<List<Tag>> = tagsFlow
+    override suspend fun getTagById(id: Long): Tag? = tagsFlow.value.find { it.id == id }
+    override suspend fun getTagByName(name: String): Tag? = tagsFlow.value.find { it.name.equals(name, ignoreCase = true) }
+    override suspend fun createTag(name: String): AppResult<Tag> {
+        val tag = Tag(id = tagsFlow.value.size + 1L, name = name, createdAt = Instant.EPOCH)
+        tagsFlow.value = tagsFlow.value + tag
+        return AppResult.success(tag)
+    }
+    override suspend fun deleteTag(id: Long): AppResult<Unit> {
+        tagsFlow.value = tagsFlow.value.filter { it.id != id }
+        return AppResult.success(Unit)
+    }
+    override suspend fun deleteOrphanTags(): AppResult<Int> = AppResult.success(0)
+    override fun observeTagsForTask(taskId: Long): Flow<List<Tag>> = MutableStateFlow(emptyList())
+    override suspend fun getTagsForTask(taskId: Long): List<Tag> = emptyList()
+    override suspend fun syncTaskTags(taskId: Long, tagNames: List<String>): AppResult<List<Tag>> = AppResult.success(emptyList())
+}
+

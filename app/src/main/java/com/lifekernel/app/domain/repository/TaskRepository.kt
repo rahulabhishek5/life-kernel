@@ -42,6 +42,17 @@ interface TaskRepository {
     fun observeCompletedCountForDate(date: LocalDate): Flow<Int>
 
     /**
+     * Observes all non-subtask tasks across all dates, ordered by due date ascending,
+     * priority descending, id ascending.
+     */
+    fun observeAllTasks(): Flow<List<Task>>
+
+    /**
+     * Fetches all non-subtask tasks across all dates.
+     */
+    suspend fun getAllTasks(): List<Task>
+
+    /**
      * Observes a single task by its [id], emitting null if the task does not exist.
      */
     fun observeTaskById(id: Long): Flow<Task?>

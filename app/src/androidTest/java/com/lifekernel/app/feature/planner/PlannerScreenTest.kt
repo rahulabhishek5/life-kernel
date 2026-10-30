@@ -5,24 +5,31 @@ import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.lifekernel.app.core.designsystem.theme.LocalReducedMotion
 import com.lifekernel.app.core.designsystem.theme.PosTheme
 import com.lifekernel.app.core.time.FixedClock
+import com.lifekernel.app.domain.model.Tag
 import com.lifekernel.app.domain.model.Task
 import com.lifekernel.app.domain.model.TaskPriority
 import com.lifekernel.app.domain.model.TaskStatus
 import com.lifekernel.app.core.result.AppError
 import com.lifekernel.app.core.result.AppResult
+import com.lifekernel.app.domain.repository.TagRepository
 import com.lifekernel.app.domain.repository.TaskRepository
 import com.lifekernel.app.domain.usecase.CompleteTaskUseCase
 import com.lifekernel.app.domain.usecase.CreateTaskUseCase
+import com.lifekernel.app.domain.usecase.ObserveAllTagsUseCase
 import com.lifekernel.app.domain.usecase.ObservePlannerTasksUseCase
 import com.lifekernel.app.domain.usecase.ReopenTaskUseCase
+import com.lifekernel.app.domain.usecase.SearchAndFilterTasksUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -45,6 +52,7 @@ class PlannerScreenTest {
 
     private lateinit var clock: FixedClock
     private lateinit var fakeRepository: PlannerFakeTaskRepository
+    private lateinit var fakeTagRepository: PlannerFakeTagRepository
     private lateinit var viewModel: PlannerViewModel
 
     private val testInstant = Instant.parse("2026-10-25T10:00:00Z")
@@ -54,11 +62,14 @@ class PlannerScreenTest {
     fun setUp() {
         clock = FixedClock(testInstant, ZoneId.of("UTC"))
         fakeRepository = PlannerFakeTaskRepository()
+        fakeTagRepository = PlannerFakeTagRepository()
         viewModel = PlannerViewModel(
             observePlannerTasksUseCase = ObservePlannerTasksUseCase(fakeRepository, clock),
             completeTaskUseCase = CompleteTaskUseCase(fakeRepository),
             reopenTaskUseCase = ReopenTaskUseCase(fakeRepository),
             createTaskUseCase = CreateTaskUseCase(fakeRepository, clock),
+            searchAndFilterTasksUseCase = SearchAndFilterTasksUseCase(fakeRepository),
+            observeAllTagsUseCase = ObserveAllTagsUseCase(fakeTagRepository),
             clock = clock
         )
     }
@@ -267,6 +278,240 @@ class PlannerScreenTest {
         val taskInRepo = runBlocking { fakeRepository.getTaskById(20L) }
         assertEquals(TaskStatus.DONE, taskInRepo?.status)
     }
+
+    @Test
+    fun plannerScreen_rendersTaskTagsOnRow() {
+        val taggedTask = Task(
+            id = 50L,
+            title = "Task with tags",
+            dueDate = testDate,
+            tags = listOf(Tag(id = 1L, name = "urgent", createdAt = testInstant)),
+            createdAt = testInstant,
+            updatedAt = testInstant
+        )
+        fakeRepository.addTask(taggedTask)
+
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("task_tag_50_urgent", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("#urgent")
+    }
+
+    @Test
+    fun plannerScreen_taskRow_withSubtasks_displaysSubtaskBadge() {
+        val subtask1 = Task(id = 61L, title = "Step 1", status = TaskStatus.DONE, parentId = 60L, createdAt = testInstant, updatedAt = testInstant)
+        val subtask2 = Task(id = 62L, title = "Step 2", status = TaskStatus.OPEN, parentId = 60L, createdAt = testInstant, updatedAt = testInstant)
+        val subtask3 = Task(id = 63L, title = "Step 3", status = TaskStatus.OPEN, parentId = 60L, createdAt = testInstant, updatedAt = testInstant)
+        val taskWithSubtasks = Task(
+            id = 60L,
+            title = "Task with checklist",
+            dueDate = testDate,
+            createdAt = testInstant,
+            updatedAt = testInstant,
+            subtasks = listOf(subtask1, subtask2, subtask3)
+        )
+        fakeRepository.addTask(taskWithSubtasks)
+
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("task_subtask_badge_60", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("1/3")
+    }
+
+    @Test
+    fun searchBar_expandsFromTopBarIcon_andRendersControls() {
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        // Tap search icon in top bar
+        composeTestRule.onNodeWithTag("planner_search_button")
+            .assertIsDisplayed()
+            .performClick()
+
+        // Inline search text field and filter bar are displayed
+        composeTestRule.onNodeWithTag("planner_search_input")
+            .assertIsDisplayed()
+        composeTestRule.onNodeWithTag("planner_filter_bar")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun crossDateSearch_displaysFutureTasksMatchingQuery() {
+        val futureTask = Task(
+            id = 100L,
+            title = "Annual Strategy Review",
+            dueDate = testDate.plusDays(30),
+            createdAt = testInstant,
+            updatedAt = testInstant
+        )
+        fakeRepository.addTask(futureTask)
+
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        // Initially excluded from Today's planner view
+        composeTestRule.onNodeWithTag("task_row_100").assertDoesNotExist()
+
+        // Open search and type query
+        composeTestRule.onNodeWithTag("planner_search_button").performClick()
+        composeTestRule.onNodeWithTag("planner_search_input").performTextInput("Strategy")
+
+        // Future task now appears in global search view with explicit due date badge
+        composeTestRule.onNodeWithTag("task_row_100").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("task_date_100").assertTextEquals("DUE 24 NOV")
+    }
+
+    @Test
+    fun filterChips_filterTasksByPriority() {
+        val highTask = Task(
+            id = 101L,
+            title = "Urgent Server Migration",
+            priority = TaskPriority.HIGH,
+            dueDate = testDate,
+            createdAt = testInstant,
+            updatedAt = testInstant
+        )
+        val lowTask = Task(
+            id = 102L,
+            title = "Clean desk",
+            priority = TaskPriority.LOW,
+            dueDate = testDate,
+            createdAt = testInstant,
+            updatedAt = testInstant
+        )
+        fakeRepository.addTask(highTask)
+        fakeRepository.addTask(lowTask)
+
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("planner_search_button").performClick()
+
+        // Filter by High Priority
+        composeTestRule.onNodeWithTag("filter_priority_high").performClick()
+
+        // Only high priority task is shown
+        composeTestRule.onNodeWithTag("task_row_101").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("task_row_102").assertDoesNotExist()
+
+        // Deselect High Priority
+        composeTestRule.onNodeWithTag("filter_priority_high").performClick()
+        composeTestRule.onNodeWithTag("task_row_101").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("task_row_102").assertIsDisplayed()
+    }
+
+    @Test
+    fun clearFilters_resetsToFullPlannerView() {
+        val task = Task(
+            id = 103L,
+            title = "Normal task",
+            dueDate = testDate,
+            createdAt = testInstant,
+            updatedAt = testInstant
+        )
+        fakeRepository.addTask(task)
+
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("planner_search_button").performClick()
+        composeTestRule.onNodeWithTag("planner_search_input").performTextInput("NoMatchingTaskXYZ")
+
+        // Empty state is displayed
+        composeTestRule.onNodeWithTag("planner_search_empty_state").assertIsDisplayed()
+
+        // Click "CLEAR FILTERS"
+        composeTestRule.onNodeWithText("CLEAR FILTERS").performClick()
+
+        // Resets back to full planner view showing normal task
+        composeTestRule.onNodeWithTag("task_row_103").assertIsDisplayed()
+    }
+
+    @Test
+    fun touchTargets_minimum48dpEnforcedOnSearchAndFilterControls() {
+        fakeTagRepository.setTags(listOf(Tag(id = 1L, name = "testtag", createdAt = testInstant)))
+
+        composeTestRule.setContent {
+            PosTheme {
+                PlannerScreen(
+                    onOpenDrawer = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+
+        // Top bar search button
+        composeTestRule.onNodeWithTag("planner_search_button")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .performClick()
+
+        // Navigation back button & Clear button in search mode
+        composeTestRule.onNodeWithTag("top_bar_navigation_button")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+
+        composeTestRule.onNodeWithTag("search_clear_button")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+
+        // Filter chips
+        composeTestRule.onNodeWithTag("filter_priority_high")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+
+        composeTestRule.onNodeWithTag("filter_priority_medium")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+
+        composeTestRule.onNodeWithTag("filter_priority_low")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+
+        composeTestRule.onNodeWithTag("filter_tag_testtag")
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+    }
 }
 
 private class PlannerFakeTaskRepository : TaskRepository {
@@ -334,6 +579,24 @@ private class PlannerFakeTaskRepository : TaskRepository {
         return tasksFlow.map { completedCounts[date] ?: 0 }
     }
 
+    override fun observeAllTasks(): Flow<List<Task>> {
+        return tasksFlow.map { map ->
+            map.values.filter { !it.isSubtask }.sortedWith(
+                compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                    .thenByDescending { it.priority.code }
+                    .thenBy { it.id }
+            )
+        }
+    }
+
+    override suspend fun getAllTasks(): List<Task> {
+        return tasks.values.filter { !it.isSubtask }.sortedWith(
+            compareBy<Task> { it.dueDate ?: LocalDate.MAX }
+                .thenByDescending { it.priority.code }
+                .thenBy { it.id }
+        )
+    }
+
     override fun observeTaskById(id: Long): Flow<Task?> {
         return tasksFlow.map { it[id] }
     }
@@ -355,7 +618,8 @@ private class PlannerFakeTaskRepository : TaskRepository {
     }
 
     override suspend fun updateTask(task: Task, tagIds: List<Long>?): AppResult<Unit> {
-        tasks[task.id] = task
+        val existing = tasks[task.id] ?: return AppResult.failure(AppError.NotFound("Task ${task.id} not found"))
+        tasks[task.id] = task.copy(status = existing.status)
         notifyChanged()
         return AppResult.success(Unit)
     }
@@ -385,3 +649,29 @@ private class PlannerFakeTaskRepository : TaskRepository {
         return AppResult.success(Unit)
     }
 }
+
+class PlannerFakeTagRepository : TagRepository {
+    private val tagsFlow = MutableStateFlow<List<Tag>>(emptyList())
+
+    fun setTags(tags: List<Tag>) {
+        tagsFlow.value = tags
+    }
+
+    override fun observeAllTags(): Flow<List<Tag>> = tagsFlow
+    override suspend fun getTagById(id: Long): Tag? = tagsFlow.value.find { it.id == id }
+    override suspend fun getTagByName(name: String): Tag? = tagsFlow.value.find { it.name.equals(name, ignoreCase = true) }
+    override suspend fun createTag(name: String): AppResult<Tag> {
+        val tag = Tag(id = tagsFlow.value.size + 1L, name = name, createdAt = Instant.EPOCH)
+        tagsFlow.value = tagsFlow.value + tag
+        return AppResult.success(tag)
+    }
+    override suspend fun deleteTag(id: Long): AppResult<Unit> {
+        tagsFlow.value = tagsFlow.value.filter { it.id != id }
+        return AppResult.success(Unit)
+    }
+    override suspend fun deleteOrphanTags(): AppResult<Int> = AppResult.success(0)
+    override fun observeTagsForTask(taskId: Long): Flow<List<Tag>> = MutableStateFlow(emptyList())
+    override suspend fun getTagsForTask(taskId: Long): List<Tag> = emptyList()
+    override suspend fun syncTaskTags(taskId: Long, tagNames: List<String>): AppResult<List<Tag>> = AppResult.success(emptyList())
+}
+
